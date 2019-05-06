@@ -262,8 +262,8 @@
      function addFolder(bytes32 parentFolder, bytes32 subFolder) public returns (bytes32) {
         bytes32 parentNode = folderNodes[parentFolder];
         
-        if(parentNode == 0) // if no such parent folder then add folder (only unique protocols are added)
-           return 0x0;
+        if(parentNode == 0) // if no such parent folder
+           parentNode = root; // then parent is root 
            
         if(!canAddressRead(msg.sender, parentNode)) // no read permission for parent
            return 0x0;
