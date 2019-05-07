@@ -17,6 +17,15 @@
      common    = addFolder(root, 0xf7c93b517d753615c49ea5b8b1ea3d75e9d75be99691bcf066226dc260a704be); // everyone r, owner w             
      temporary = addFolder(root, 0xc96eea3628fe2bbedfaf37cbf7a7c196aa346555e7b0dd60cea44a5319b17945); // everyone r/w   
 */
+/*
+      privateNodeId      = addFolder(rootNodeId, 0x69ebce02fbffacce50622356b97cc93a78f17feb5bf8e8ccacbdb7032e3162dc); // none can r/w
+      publicNodeId       = addFolder(rootNodeId, 0x7e00625d1d39ffe13a119d9085848880ad5ccd078e38677f3a705653326d44ed); 
+      unrestrainedNodeId = addFolder(rootNodeId, 0xd0e98c61c165756dc6a3294835afbb596b332b2a27061c997163e623939c6cc0); 
+      
+      setNodeAccess(publicNodeId, address(0x0), 1); // everyone can read, but not write
+      setNodeAccess(sharedNodeId, address(0x0), 3); // unknown can add, but not read 
+      setNodeAccess(unrestrainedNodeId, address(0x0), 2); // all can read all can write
+*/
 
  pragma solidity ^0.5.0;
  contract Owned {
@@ -117,8 +126,7 @@ contract OwnerAssigned {
     function addNode(bytes32 nodeId, bytes32 folder) internal returns(bytes32 newId) {
         if(!isNode(nodeId) && nodeId > 0) revert(); // zero is a new root node
         newId = keccak256(abi.encodePacked(nodeId, msg.sender, block.number, folder));
-        //newId = keccak256(abi.encodePacked(block.number, folder));
-        
+
         Node memory node;
         node.parent = nodeId;
         node.isNode = true;
@@ -148,16 +156,8 @@ contract OwnerAssigned {
       owner = _owner;         
       rootNodeId         = addNode(0, 0xc7f5bbf5fe95923f0691c94f666ac3dfed12456cd33bd018e7620c3d93edd5a6); // the root of all, onlyOwner r/w  c7f5bbf5fe95923f0691c94f666ac3dfed12456cd33bd018e7620c3d93edd5a6
       sharedNodeId       = addFolder(rootNodeId, 0x23e642b7242469a5e3184a6566020c815689149967703a98c0affc14b9ca9b28);
-      
-      /*
-      privateNodeId      = addFolder(rootNodeId, 0x69ebce02fbffacce50622356b97cc93a78f17feb5bf8e8ccacbdb7032e3162dc); // none can r/w
-      publicNodeId       = addFolder(rootNodeId, 0x7e00625d1d39ffe13a119d9085848880ad5ccd078e38677f3a705653326d44ed); 
-      unrestrainedNodeId = addFolder(rootNodeId, 0xd0e98c61c165756dc6a3294835afbb596b332b2a27061c997163e623939c6cc0); 
-      
-      setNodeAccess(publicNodeId, address(0x0), 1); // everyone can read, but not write
-      setNodeAccess(sharedNodeId, address(0x0), 3); // unknown can add, but not read 
-      setNodeAccess(unrestrainedNodeId, address(0x0), 2); // all can read all can write
-      */
+
+      // setNodeAccess(sharedNodeId, address(0x0), 3); // unknown can add, but not read 
     }
     
     function getVersion() public view returns (uint) {
@@ -430,42 +430,39 @@ contract MultiBox is Owned
 {
     uint version;
     bool public initialized=false;
-    // Constructor.
+    
     constructor() public {
         version = 1;
         initialized=false;
     }
     
-    function Init() public returns (address)
-    {
+    function Init() public returns (address) {
         CreateRoot(owner);
         initialized=true;
     }
     
     // other deployed multiboxes    
     address[] roots; 
-    // any one can create new root, but ownership will belong to owner of multibox, while r/w rights can be set to anyone
-    function CreateRoot(address whoHasReadWriteRights) public returns (address)
-    {
+    // any one can create new root, but ownership will belong to owner of multibox, 
+    // while r/w of shared node can be set to whoHasReadWriteRights
+    function CreateRoot(address whoHasReadWriteRights) public returns (address) {
         KeyValueTree mb = new KeyValueTree(owner);
         if(!initialized)
-          mb.setNodeAccess(mb.getShared(), whoHasReadWriteRights, 3);
+          mb.setNodeAccess(mb.getShared(), whoHasReadWriteRights, 3); // first root shared node can anyone write to, but can't read from
         else 
           mb.setNodeAccess(mb.getShared(), whoHasReadWriteRights, 2); // whoHasReadWriteRights
           
         return addBox(address(mb));
     }
-    function getRoots() public view returns (address[] memory)
-    {
+    function getRoots() public view returns (address[] memory) {
         return roots;
     }
-    function addBox(address keyValueTreeRoot) public returns (address)
-    {
+    // others can add KeyValueTrees (but need to set access rights by themselfs)
+    function addBox(address keyValueTreeRoot) public returns (address) {
         roots.push(keyValueTreeRoot);
         return keyValueTreeRoot;
     }
-    function removeBox(uint256 index) onlyOwner public returns (uint256)
-    {
+    function removeBox(uint256 index) onlyOwner public returns (uint256) {
         roots[index] = roots[roots.length-1];
         delete roots[roots.length-1];
         roots.length--;
