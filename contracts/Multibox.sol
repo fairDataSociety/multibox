@@ -27,6 +27,9 @@
       setNodeAccess(unrestrainedNodeId, address(0x0), 2); // all can read all can write
 */
 
+// TODO: prepare events 
+// TODO: method to move key/value from nodeId to new nodeId 
+
  pragma solidity ^0.5.0;
  contract Owned {
     address payable public owner;
@@ -430,11 +433,13 @@ contract Multibox is Owned
         initialized=false;
     }
     
-    function init() public returns (address) {
+    function init() public returns (KeyValueTree) {
+        KeyValueTree a; 
         if(!initialized)
-            createRoot(owner);
+            a = createRoot(owner);
             
         initialized=true;
+        return a;
     }
     
     // any one can create new root, but ownership will belong to owner of multibox, 
