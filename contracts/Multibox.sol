@@ -38,26 +38,8 @@
     constructor () public { owner = msg.sender; }
     function changeOwner(address payable _newOwner) public onlyOwner { owner = _newOwner; }
 }
-contract OwnerAssigned {
-    address public owner;
-    modifier onlyOwner() {
-        require(msg.sender == owner);
-        _;
-    }
-    /// @notice The Constructor assigns the message sender to be `owner`
-    constructor () public { owner = address(0x0); }
-    function assignOwner(address _newOwner) public 
-    { 
-        if(owner==address(0x0))
-           owner = _newOwner; 
-        else if(msg.sender == owner) // owner can still move ownership to other address
-        {
-            owner = _newOwner; 
-        }
-    }
-}
 
- contract KeyValueTree is Owned {
+contract KeyValueTree is Owned {
     mapping(bytes32 => bytes32) internal folderNodes; // map of folder to NodeId
 
     mapping(bytes32 => uint256) folderIndex; // map of folder to index
@@ -151,7 +133,7 @@ contract OwnerAssigned {
     function getShared() public view returns (bytes32) { return sharedNodeId; }
     
     // constructor
-    constructor(address _owner) public {
+    constructor(address payable _owner) public {
       version = 1;
       owner = _owner;         
       rootNodeId         = addNode(0, 0xc7f5bbf5fe95923f0691c94f666ac3dfed12456cd33bd018e7620c3d93edd5a6); // the root of all, onlyOwner r/w  c7f5bbf5fe95923f0691c94f666ac3dfed12456cd33bd018e7620c3d93edd5a6
@@ -428,11 +410,12 @@ contract OwnerAssigned {
     ///////////////////////////////////////////////////////////////////////////////////////////
 }
 
-
 contract MultiBox is Owned
 {
     uint version;
     bool public initialized=false;
+    // addresses of roots     
+    address[] roots; 
     
     constructor() public {
         version = 1;
@@ -440,12 +423,12 @@ contract MultiBox is Owned
     }
     
     function init() public returns (address) {
-        createRoot(owner);
+        if(!initialized)
+            createRoot(owner);
+            
         initialized=true;
     }
     
-    // other deployed multiboxes    
-    address[] roots; 
     // any one can create new root, but ownership will belong to owner of multibox, 
     // while r/w of shared node can be set to whoHasReadWriteRights
     function createRoot(address whoHasReadWriteRights) public returns (address) {
@@ -453,12 +436,18 @@ contract MultiBox is Owned
         if(!initialized)
           mb.setNodeAccess(mb.getShared(), whoHasReadWriteRights, 3); // first root shared node can anyone write to, but can't read from
         else 
-          mb.setNodeAccess(mb.getShared(), whoHasReadWriteRights, 2); // whoHasReadWriteRights
+          mb.setNodeAccess(mb.getShared(), whoHasReadWriteRights, 2); // whoHasReadWriteRights r/w 
           
         return addBox(address(mb));
     }
     function getRoots() public view returns (address[] memory) {
         return roots;
+    }
+    function getRootsCount() public view returns (uint256) {
+        return roots.length;
+    }
+    function getRootAt(uint256 index) public view returns (address) {
+        return roots[index];
     }
     // others can add KeyValueTrees (but need to set access rights by themselfs)
     function addBox(address keyValueTreeRoot) public returns (address) {
@@ -466,7 +455,7 @@ contract MultiBox is Owned
         return keyValueTreeRoot;
     }
     function removeBox(uint256 index) onlyOwner public returns (uint256) {
-        if(index==0) return 0; // fail
+        if(index==0) return 0; // fail cant NEVER remove root
         
         roots[index] = roots[roots.length-1];
         delete roots[roots.length-1];
