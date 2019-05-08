@@ -179,6 +179,7 @@ contract OwnerAssigned {
          if(addr==msg.sender) return true;
          
          Node storage n = Nodes[nodeId];
+         if(n.canAccess[addr] == -1)  return false;  //address is blacklisted 
          if(n.canAccess[address(0x0)] == 3) return false; //none can read
          if(n.canAccess[address(0x0)] > 0)  return true;  //everyone can access
          return n.canAccess[addr]>0;
@@ -188,6 +189,7 @@ contract OwnerAssigned {
          if(addr==msg.sender) return true;
          
          Node storage n = Nodes[nodeId];
+         if(n.canAccess[addr] == -1)  return false;  //address is blacklisted 
          if(n.canAccess[address(0x0)] > 1) return true; //everyone can write
          return n.canAccess[addr]>1;
      }
@@ -196,6 +198,7 @@ contract OwnerAssigned {
          if(addr==msg.sender) return true;
          Node storage n = Nodes[nodeId];
          
+         if(n.canAccess[addr] == -1)  return false;  //address is blacklisted 
          if(n.canAccess[address(0x0)] > 3) return true; //everyone can overwrite
          return n.canAccess[addr] > 3; // yes you can overwrite
      }
