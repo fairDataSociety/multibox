@@ -29,14 +29,14 @@
 
  pragma solidity ^0.5.0;
  contract Owned {
-    address public owner;
+    address payable owner;
     modifier onlyOwner() {
         require(msg.sender == owner);
         _;
     }
     /// @notice The Constructor assigns the message sender to be `owner`
     constructor () public { owner = msg.sender; }
-    function changeOwner(address _newOwner) public onlyOwner { owner = _newOwner; }
+    function changeOwner(address payable _newOwner) public onlyOwner { owner = _newOwner; }
 }
 contract OwnerAssigned {
     address public owner;
@@ -466,9 +466,19 @@ contract MultiBox is Owned
         return keyValueTreeRoot;
     }
     function removeBox(uint256 index) onlyOwner public returns (uint256) {
+        if(index==0) return 0; // fail
+        
         roots[index] = roots[roots.length-1];
         delete roots[roots.length-1];
         roots.length--;
         return roots.length--;
+    }
+    
+    // fallback function to accept ETH into contract.
+    function () external payable {
+    }
+    // allow owner to remove funds  
+    function removeFunds() public {
+        owner.transfer(address(this).balance);
     }
 }
