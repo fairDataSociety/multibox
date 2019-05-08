@@ -472,7 +472,7 @@ contract Multibox is Owned
         return roots.length--;
     }
     // others can remove their trees 
-    function revokeBox(uint256 index) onlyOwner public returns (uint256) {
+    function revokeBox(uint256 index) public returns (uint256) {
         KeyValueTree kvt = roots[index];
         
         if(index==0) return 0; // fail cant NEVER remove root
