@@ -42,6 +42,8 @@
 contract KeyValueTree is Owned {
     mapping(bytes32 => bytes32) internal folderNodes; // map of folder to NodeId
 
+    event NodeCreated(bytes32 nodeId);
+
     mapping(bytes32 => uint256) folderIndex; // map of folder to index
     bytes32[] folders; // all folder roots
 
@@ -118,6 +120,8 @@ contract KeyValueTree is Owned {
         }
         
         Nodes[newId] = node;
+
+        emit NodeCreated(newId);
         return newId;
     }
     function addChildNode(bytes32 nodeId, bytes32 childId) private returns(uint index) {
@@ -129,13 +133,16 @@ contract KeyValueTree is Owned {
     bytes32 public rootNodeId; // root of tree
     bytes32 public sharedNodeId; // incoming node id
     
+    event Constructor1(address addr);
+
     function getRoot() public view returns (bytes32) { return rootNodeId; }
     function getShared() public view returns (bytes32) { return sharedNodeId; }
     
     // constructor
     constructor(address payable _owner) public {
       version = 1;
-      owner = _owner;         
+      owner = _owner;     
+      emit Constructor1(_owner);
       rootNodeId         = addNode(0, 0xc7f5bbf5fe95923f0691c94f666ac3dfed12456cd33bd018e7620c3d93edd5a6); // the root of all, onlyOwner r/w  c7f5bbf5fe95923f0691c94f666ac3dfed12456cd33bd018e7620c3d93edd5a6
       sharedNodeId       = addFolder(rootNodeId, 0x23e642b7242469a5e3184a6566020c815689149967703a98c0affc14b9ca9b28);
 
@@ -416,17 +423,23 @@ contract MultiBox is Owned
     bool public initialized=false;
     // addresses of roots     
     address[] roots; 
+
+    event Constructed();
+    event Initialized();
     
     constructor() public {
         version = 1;
         initialized=false;
+        emit Constructed();
     }
     
-    function init() public returns (address) {
+    function init() public returns (KeyValueTree) {
+        KeyValueTree a; 
         if(!initialized)
-            createRoot(owner);
+            a = createRoot(owner);
             
         initialized=true;
+        return a;
     }
     
     // any one can create new root, but ownership will belong to owner of multibox, 
