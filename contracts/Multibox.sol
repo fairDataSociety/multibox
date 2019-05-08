@@ -29,7 +29,7 @@
 
  pragma solidity ^0.5.0;
  contract Owned {
-    address payable owner;
+    address payable public owner;
     modifier onlyOwner() {
         require(msg.sender == owner);
         _;
@@ -55,11 +55,12 @@ contract KeyValueTree is Owned {
     // contains 0x0 = 1, everyone can read/write
     // contains 0x0 = 1, everyone can read/write
     // contains 0x0 = 0, none onlyOwner
-    // contains address = 0, address is forbiden to 
-    // contains address = 1, address can read
-    // contains address = 2, address can read/write
-    // contains address = 3, address can write but can not read
-    // contains address = 4, address can overwrite existing address feed 
+    // contains address = -1, address is forbiden to 
+    // contains address =  0, address is forbiden to 
+    // contains address =  1, address can read
+    // contains address =  2, address can read/write
+    // contains address =  3, address can write but can not read
+    // contains address =  4, address can overwrite existing address feed 
     struct Node {
         bool      isNode;
         bytes32   parent;
@@ -408,6 +409,13 @@ contract KeyValueTree is Owned {
      return folders[idx];
     }
     ///////////////////////////////////////////////////////////////////////////////////////////
+    
+    // fallback function to accept ETH into contract.
+    function () external payable { }
+    // allow owner to remove funds  
+    function removeFunds() public {
+        owner.transfer(address(this).balance);
+    }    
 }
 
 contract Multibox is Owned
@@ -415,7 +423,7 @@ contract Multibox is Owned
     uint version;
     bool public initialized=false;
     // addresses of roots     
-    address[] roots; 
+    KeyValueTree[] roots; 
     
     constructor() public {
         version = 1;
@@ -431,31 +439,45 @@ contract Multibox is Owned
     
     // any one can create new root, but ownership will belong to owner of multibox, 
     // while r/w of shared node can be set to whoHasReadWriteRights
-    function createRoot(address whoHasReadWriteRights) public returns (address) {
-        KeyValueTree mb = new KeyValueTree(owner);
+    function createRoot(address whoHasReadWriteRights) public returns (KeyValueTree) {
+        KeyValueTree kvt = new KeyValueTree(owner);
         if(!initialized)
-          mb.setNodeAccess(mb.getShared(), whoHasReadWriteRights, 3); // first root shared node can anyone write to, but can't read from
+          kvt.setNodeAccess(kvt.getShared(), whoHasReadWriteRights, 3); // first root shared node can anyone write to, but can't read from
         else 
-          mb.setNodeAccess(mb.getShared(), whoHasReadWriteRights, 2); // whoHasReadWriteRights r/w 
+          kvt.setNodeAccess(kvt.getShared(), whoHasReadWriteRights, 2); // whoHasReadWriteRights r/w 
           
-        return addBox(address(mb));
+        return addBox(kvt);
     }
-    function getRoots() public view returns (address[] memory) {
+    function getRoots() public view returns (KeyValueTree[] memory) {
         return roots;
     }
     function getRootsCount() public view returns (uint256) {
         return roots.length;
     }
-    function getRootAt(uint256 index) public view returns (address) {
+    function getRootAt(uint256 index) public view returns (KeyValueTree) {
         return roots[index];
     }
     // others can add KeyValueTrees (but need to set access rights by themselfs)
-    function addBox(address keyValueTreeRoot) public returns (address) {
+    function addBox(KeyValueTree keyValueTreeRoot) public returns (KeyValueTree) {
         roots.push(keyValueTreeRoot);
         return keyValueTreeRoot;
     }
+    
     function removeBox(uint256 index) onlyOwner public returns (uint256) {
         if(index==0) return 0; // fail cant NEVER remove root
+        
+        roots[index] = roots[roots.length-1];
+        delete roots[roots.length-1];
+        roots.length--;
+        return roots.length--;
+    }
+    // others can remove their trees 
+    function revokeBox(uint256 index) onlyOwner public returns (uint256) {
+        KeyValueTree kvt = roots[index];
+        
+        if(index==0) return 0; // fail cant NEVER remove root
+        if(kvt.owner() == msg.sender) // not owner of tree? can't move then 
+           return 0;
         
         roots[index] = roots[roots.length-1];
         delete roots[roots.length-1];
