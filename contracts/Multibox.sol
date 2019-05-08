@@ -446,7 +446,7 @@ contract Multibox is Owned
         else 
           kvt.setNodeAccess(kvt.getShared(), whoHasReadWriteRights, 2); // whoHasReadWriteRights r/w 
           
-        return addBox(kvt);
+        return addRoot(kvt);
     }
     function getRoots() public view returns (KeyValueTree[] memory) {
         return roots;
@@ -458,12 +458,12 @@ contract Multibox is Owned
         return roots[index];
     }
     // others can add KeyValueTrees (but need to set access rights by themselfs)
-    function addBox(KeyValueTree keyValueTreeRoot) public returns (KeyValueTree) {
+    function addRoot(KeyValueTree keyValueTreeRoot) public returns (KeyValueTree) {
         roots.push(keyValueTreeRoot);
         return keyValueTreeRoot;
     }
-    
-    function removeBox(uint256 index) onlyOwner public returns (uint256) {
+    // owner can remove any root except 0 
+    function removeRoot(uint256 index) onlyOwner public returns (uint256) {
         if(index==0) return 0; // fail cant NEVER remove root
         
         roots[index] = roots[roots.length-1];
@@ -472,7 +472,7 @@ contract Multibox is Owned
         return roots.length--;
     }
     // others can remove their trees 
-    function revokeBox(uint256 index) public returns (uint256) {
+    function revokeRoot(uint256 index) public returns (uint256) {
         KeyValueTree kvt = roots[index];
         
         if(index==0) return 0; // fail cant NEVER remove root
