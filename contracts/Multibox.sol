@@ -439,8 +439,8 @@ contract MultiBox is Owned
         initialized=false;
     }
     
-    function Init() public returns (address) {
-        CreateRoot(owner);
+    function init() public returns (address) {
+        createRoot(owner);
         initialized=true;
     }
     
@@ -448,7 +448,7 @@ contract MultiBox is Owned
     address[] roots; 
     // any one can create new root, but ownership will belong to owner of multibox, 
     // while r/w of shared node can be set to whoHasReadWriteRights
-    function CreateRoot(address whoHasReadWriteRights) public returns (address) {
+    function createRoot(address whoHasReadWriteRights) public returns (address) {
         KeyValueTree mb = new KeyValueTree(owner);
         if(!initialized)
           mb.setNodeAccess(mb.getShared(), whoHasReadWriteRights, 3); // first root shared node can anyone write to, but can't read from
