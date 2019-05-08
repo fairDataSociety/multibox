@@ -454,6 +454,7 @@ contract MultiBox is Owned
         roots.push(keyValueTreeRoot);
         return keyValueTreeRoot;
     }
+	// owner can remove from root
     function removeBox(uint256 index) onlyOwner public returns (uint256) {
         if(index==0) return 0; // fail cant NEVER remove root
         
