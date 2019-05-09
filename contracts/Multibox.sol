@@ -474,12 +474,12 @@ contract Multibox is Owned
         roots[index] = roots[roots.length-1];
         delete roots[roots.length-1];
         roots.length--;
-        return roots.length--;
+        return roots.length;
     }
     // others can remove their trees 
     function revokeRoot(uint256 index) public returns (uint256) {
         KeyValueTree kvt = roots[index];
-        
+         
         if(index==0) return 0; // fail cant NEVER remove root
         if(kvt.owner() == msg.sender) // not owner of tree? can't move then 
            return 0;
@@ -487,7 +487,7 @@ contract Multibox is Owned
         roots[index] = roots[roots.length-1];
         delete roots[roots.length-1];
         roots.length--;
-        return roots.length--;
+        return roots.length;
     }
     
     // fallback function to accept ETH into contract.
