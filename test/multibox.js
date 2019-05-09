@@ -138,6 +138,13 @@ contract('Multibox', (accounts) => {
 
         assert.equal(numValues.toString(), numKeys.toString(), "miscount key/value");
     });
+    //TODO
+    // overwrite key
+    // delete key
+    // remove node 
+    // remove child 
+    // test access rights 
+    
 
     /*
     it('many roots ', async () => {
