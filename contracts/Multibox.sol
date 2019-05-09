@@ -79,6 +79,17 @@ contract KeyValueTree is Owned {
         bytes32[] children;  
     }
     
+    event NodeAdded(bytes32);
+    event NodeRemovedChild(uint256);
+    event NodeAddChild(bytes32);
+    event NodeAccessChange(bytes32,address,int);
+    event NodeDelete(bytes32 nodeId, bytes32 folder);
+    event AddFolder(bytes32 nodeId, bytes32 folder);
+    event KeyValueSet(bytes32 nodeId, bytes32 key, bytes32 value);
+    event KeyValueSetFolder(bytes32 nodeId, bytes32 folder);
+    event OverwriteKeyValue(bytes32 nodeId, uint256 index, bytes32 key, bytes32 value);
+    event RemoveKeyValue(bytes32 nodeId, uint256 index, bytes32 key, bytes32 value);
+    
     function isNode(bytes32 nodeId) public view returns(bool)  {
         return Nodes[nodeId].isNode;
     }
@@ -91,7 +102,7 @@ contract KeyValueTree is Owned {
     function getNodeChildren(bytes32 nodeId) public view returns(bytes32[] memory childrenId) {
         return Nodes[nodeId].children;
     }
-    function removeChildAt(bytes32 nodeId, uint index) public returns (bool) {
+    function removeChildAt(bytes32 nodeId, uint256 index) public returns (bool) {
          // removes children node from nodeId, not best way as it does reordering 
          if(!canWrite(nodeId, msg.sender)) return false;  // can write to node that is supposed to be deleted?
 
@@ -107,6 +118,8 @@ contract KeyValueTree is Owned {
          node.children.length--;
          
          Nodes[node.children[last]].index = idx; // swap index
+         
+         emit NodeRemovedChild(index);
          return true;
     }    
     function addNode(bytes32 nodeId, bytes32 folder) internal returns(bytes32 newId) {
@@ -122,9 +135,11 @@ contract KeyValueTree is Owned {
         }
         
         Nodes[newId] = node;
+        emit NodeAdded(newId);
         return newId;
     }
     function addChildNode(bytes32 nodeId, bytes32 childId) private returns(uint index) {
+        emit NodeAddChild(childId);
         return Nodes[nodeId].children.push(childId) - 1;
     }
     
@@ -142,7 +157,6 @@ contract KeyValueTree is Owned {
       owner = _owner;         
       rootNodeId         = addNode(0, 0xc7f5bbf5fe95923f0691c94f666ac3dfed12456cd33bd018e7620c3d93edd5a6); // the root of all, onlyOwner r/w  c7f5bbf5fe95923f0691c94f666ac3dfed12456cd33bd018e7620c3d93edd5a6
       sharedNodeId       = addFolder(rootNodeId, 0x23e642b7242469a5e3184a6566020c815689149967703a98c0affc14b9ca9b28);
-
       // setNodeAccess(sharedNodeId, address(0x0), 3); // unknown can add, but not read 
     }
     
@@ -151,10 +165,12 @@ contract KeyValueTree is Owned {
      }
     
     function setNodeAccess(bytes32 nodeId, address addr, int rights) /*onlyOwner*/ public returns (int) {
-        if(msg.sender!=owner) return -1;
-        if(addr==owner) return 2; // owner always has r/w access
         
+        if(msg.sender!=owner) return -1;
+        if(addr==owner) return 2; // owner always has r/w access, this is needed so one can not bloat mapping with owner address
+
         if(isNode(nodeId)) {
+           emit NodeAccessChange(nodeId,addr,rights);
            Nodes[nodeId].canAccess[addr] = rights;
            return rights;
         }
@@ -205,6 +221,8 @@ contract KeyValueTree is Owned {
             folders[index] = folders[folders.length-1];
             delete folders[folders.length-1];
             folders.length--;
+            
+            emit NodeDelete(nodeId, folder);
             return true;
         }
         return false;
@@ -243,15 +261,16 @@ contract KeyValueTree is Owned {
         
         nodeIdToFolder[newNodeId] = subFolder; // we need mapping to folder from nodeId
         
+        emit AddFolder(newNodeId, subFolder);
+        
         if(msg.sender!=owner)
           setNodeAccess(newNodeId, msg.sender, 2); // give r/w access to creator of node
            
         return newNodeId; 
     }
-    
     ///////////////////////////////////////////////////////////////////////////////////////////      
     // setKeyValue, will suceed only when no such key with value exist
-    function setKeyValue(bytes32 folder, bytes32 key, bytes32 value) public returns (bool) {
+    function setKeyValueFolder(bytes32 folder, bytes32 key, bytes32 value) public returns (bool) {
          bytes32 targetNode = folderNodes[folder];
          
          if(targetNode==0) {// folder does not exist in mapping to all folder
@@ -261,17 +280,23 @@ contract KeyValueTree is Owned {
               
             targetNode = addFolder(makeSubFolderIn, folder);
          }
+         emit KeyValueSetFolder(targetNode, folder);
          
-         if(!canWrite(targetNode, msg.sender)) // no read permission for parent
+         return setKeyValue(targetNode, key, value);
+    }
+    function setKeyValue(bytes32 nodeId, bytes32 key, bytes32 value) public returns (bool) {
+         if(!canWrite(nodeId, msg.sender)) // no read permission for parent
            return false;
          
-         Node storage node = Nodes[targetNode];
+         Node storage node = Nodes[nodeId];
+         bytes32 folder = getFolder(nodeId);
          if(node.valuesMap[key] == 0x0) // no such value yet
          {
             node.keys.push(key);
             node.values.push(value); 
             node.valuesMap[key] = value;
             keyFolderValues[key][folder].push(value);
+            emit KeyValueSet(nodeId, key, value);
             return true; 
          } 
          
@@ -337,6 +362,8 @@ contract KeyValueTree is Owned {
             node.valuesMap[key] = newValue; //
             bytes32 folder = getFolder(nodeId);
             keyFolderValues[key][folder].push(newValue);
+            
+            emit OverwriteKeyValue(nodeId,index,key,newValue);
             return true;
         }        
         return false;
@@ -348,6 +375,7 @@ contract KeyValueTree is Owned {
          Node storage node = Nodes[nodeId];
          
          bytes32 atKey = node.keys[index];
+         bytes32 preValue = node.values[index];
          require(atKey!=0x0); // node has no sender at index 
          
          node.valuesMap[atKey] = 0x0; // clear sender         
@@ -359,6 +387,8 @@ contract KeyValueTree is Owned {
          node.values[index] = node.values[node.values.length-1];
          delete node.values[node.values.length-1];
          node.values.length--;
+         
+         emit RemoveKeyValue(nodeId, index, atKey, preValue);
          return true;
     }
     
@@ -424,9 +454,16 @@ contract KeyValueTree is Owned {
 contract Multibox is Owned
 {
     uint version;
-    bool public initialized=false;
+    bool public initialized=false; 
     // addresses of roots     
     KeyValueTree[] roots; 
+    
+    event Initialized();
+    event RootCreated(KeyValueTree);
+    event RootAdded(KeyValueTree);
+    event RootRemoved(uint256);
+    event RootRevoked(uint256);
+    event FundsRemoved(uint256);
     
     constructor() public {
         version = 1;
@@ -437,7 +474,10 @@ contract Multibox is Owned
         KeyValueTree a; 
         if(!initialized)
             a = createRoot(owner);
-            
+        
+        if(!initialized) 
+           emit Initialized(); 
+           
         initialized=true;
         return a;
     }
@@ -451,6 +491,7 @@ contract Multibox is Owned
         else 
           kvt.setNodeAccess(kvt.getShared(), whoHasReadWriteRights, 2); // whoHasReadWriteRights r/w 
           
+        emit RootCreated(kvt);  
         return addRoot(kvt);
     }
     function getRoots() public view returns (KeyValueTree[] memory) {
@@ -463,9 +504,10 @@ contract Multibox is Owned
         return roots[index];
     }
     // others can add KeyValueTrees (but need to set access rights by themselfs)
-    function addRoot(KeyValueTree keyValueTreeRoot) public returns (KeyValueTree) {
-        roots.push(keyValueTreeRoot);
-        return keyValueTreeRoot;
+    function addRoot(KeyValueTree kvt) public returns (KeyValueTree) {
+        roots.push(kvt);
+        emit RootAdded(kvt);  
+        return kvt;
     }
     // owner can remove any root except 0 
     function removeRoot(uint256 index) onlyOwner public returns (uint256) {
@@ -474,6 +516,7 @@ contract Multibox is Owned
         roots[index] = roots[roots.length-1];
         delete roots[roots.length-1];
         roots.length--;
+        emit RootRemoved(index);
         return roots.length;
     }
     // others can remove their trees 
@@ -487,6 +530,7 @@ contract Multibox is Owned
         roots[index] = roots[roots.length-1];
         delete roots[roots.length-1];
         roots.length--;
+        emit RootRevoked(index);
         return roots.length;
     }
     
@@ -495,6 +539,7 @@ contract Multibox is Owned
     }
     // allow owner to remove funds  
     function removeFunds() public {
+        emit FundsRemoved(address(this).balance);
         owner.transfer(address(this).balance);
     }
 }
