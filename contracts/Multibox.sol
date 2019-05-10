@@ -526,7 +526,8 @@ contract Multibox is Owned
     event FundsRemoved(uint256);
     
     event AccessRequested(address, Multibox, KeyValueTree, bytes32);
-    event AccessRequestFail(address, Multibox, KeyValueTree, bytes32 nodeId, bool canOwnerWrite); 
+    event AccessRequestFail(address, Multibox, KeyValueTree, bytes32 nodeId, bool canOwnerWrite);
+    event AccessRequestFailNotOwner(address kvtOwner, address multiboxOwner); 
     
     constructor() public {
         version = 1;
@@ -618,6 +619,11 @@ contract Multibox is Owned
     {
         DataRequestEscrow dr;
         bool canWrite = kvt.canWrite(nodeId, owner);
+        if(kvt.owner()!=this.owner())
+        {
+            emit AccessRequestFailNotOwner(kvt.owner(), this.owner());
+            return dr;
+        }
         if(canWrite)
         {
             dr = new DataRequestEscrow(msg.sender, this, kvt, nodeId); 
