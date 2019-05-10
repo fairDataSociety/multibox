@@ -47,7 +47,7 @@
 contract KeyValueTree is Owned {
     mapping(bytes32 => bytes32) internal folderNodes; // map of folder to NodeId
 
-    mapping(bytes32 => uint256) folderIndex; // map of folder to index
+    mapping(bytes32 => uint256) folderIndex; // map of folder to index (starts with 1, not 0!!)
     bytes32[] folders; // all folder roots
 
     mapping(bytes32 => mapping(bytes32 => bytes32[])) internal keyFolderValues; // feeds by sender by folder
@@ -214,15 +214,18 @@ contract KeyValueTree is Owned {
         if(removeChildAt(node.parent, node.index)) 
         {
             uint256 index = folderIndex[folder]; 
-            folderNodes[folder] = 0x0;
-            folderIndex[folder] = 0x0;
-    
-            folders[index] = folders[folders.length-1];
-            delete folders[folders.length-1];
-            folders.length--;
-            
-            emit NodeDelete(nodeId, folder);
-            return true;
+            if(index!=0)
+            {
+                folderNodes[folder] = 0x0;
+                folderIndex[folder] = 0;
+        
+                folders[index] = folders[folders.length-1];
+                delete folders[folders.length-1];
+                folders.length--;
+                
+                emit NodeDelete(nodeId, folder);
+                return true;
+            }
         }
         return false;
     }     
@@ -256,7 +259,7 @@ contract KeyValueTree is Owned {
         bytes32 newNodeId = addNode(parentId, subFolder); // add child to parent
 
         folderNodes[subFolder] = newNodeId; 
-        folderIndex[subFolder] = folders.push(subFolder)-1;
+        folderIndex[subFolder] = folders.push(subFolder);
         
         nodeIdToFolder[newNodeId] = subFolder; // we need mapping to folder from nodeId
         
@@ -557,7 +560,7 @@ contract Multibox is Owned
     
     // ok so maybe this should be on Multibox level, multibox,kvt, nodeId
     DataRequestEscrow[] accessRequests;
-    mapping(address => uint256) accessRequestsIndex; // map of folder to index
+    mapping(address => uint256) accessRequestsIndex; // map of folder to index (+1)
     
     function requestAccess(KeyValueTree kvt, bytes32 nodeId) public returns(DataRequestEscrow)
     {
@@ -571,7 +574,7 @@ contract Multibox is Owned
         if(canWrite)
         {
             dr = new DataRequestEscrow(msg.sender, this, kvt, nodeId); 
-            accessRequestsIndex[address(dr)] = accessRequests.push(dr)-1;
+            accessRequestsIndex[address(dr)] = accessRequests.push(dr);
             emit AccessRequested(msg.sender, this, kvt, nodeId);
             return dr;
         }
@@ -581,16 +584,21 @@ contract Multibox is Owned
     }
     function allowAccess(DataRequestEscrow dr) public onlyOwner 
     {
-        if(dr.approve())
+        uint256 index = accessRequestsIndex[address(dr)];
+        if(index!=0) 
         {
-            emit AccessGiven(address(dr), dr.whoRequester());
-            uint256 index = accessRequestsIndex[address(dr)];
-            
-            accessRequests[index] = accessRequests[roots.length-1];
-            delete accessRequests[accessRequests.length-1];
-            accessRequests.length--;
-            
-            dr.finalize(); // destroy contract, funds are moved to multibox.owner
+            if(dr.approve())
+            {
+                emit AccessGiven(address(dr), dr.whoRequester());
+                
+                accessRequestsIndex[address(dr)] = 0;
+                
+                accessRequests[index-1] = accessRequests[accessRequests.length-1];
+                delete accessRequests[accessRequests.length-1];
+                accessRequests.length--;
+                
+                dr.finalize(); // destroy contract, funds are moved to multibox.owner
+            }
         }
         dr.denyApproval();
     }
