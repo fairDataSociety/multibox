@@ -44,66 +44,6 @@
     function changeOwner(address payable _newOwner) public onlyOwner { owner = _newOwner; }
 }
 
-// kvt, nodeid
-// what we want: we want to assure that if addr1 gives data to addr2, addr2 will really pay 
-// like escrow:
-// 1. alice request data kvt,nodeid(,key,value) from bob
-// 2. bob sets price
-// 3. alice pays price to escrow
-// 4. bob transfers knt,nodeid,key,value to alice
-// 5. bob takes the money
-
-contract DataRequestEscrow {
-    Multibox multibox;
-    KeyValueTree kvt; 
-    bytes32 nodeId; 
-
-    address payable requester;
-
-     modifier onlyOwnerMultibox() {
-        require(msg.sender == multibox.owner());
-        _;
-    }
-    
-    constructor(address payable whoIsRequesting, Multibox mb, KeyValueTree keyValueTree, bytes32 targetNodeId) public
-    {
-        requester = whoIsRequesting;
-        multibox = mb;
-        kvt = keyValueTree;
-        nodeId = targetNodeId;
-    }
-
-    function deposit() external payable {
-        require(msg.sender==requester);
-        require(msg.value > 0);
-    }
-
-    function approve() onlyOwnerMultibox external {
-        if(kvt.isNode(nodeId))
-        {
-            int readRights = kvt.setNodeAccess(nodeId, requester, 1); // give read permission 
-            if(readRights==1) {
-               //multibox.owner().transfer(address(this).balance);
-               selfdestruct(multibox.owner()); // will destruct this contract and give funds to multibox.owner;
-               return;
-            }
-        }
-        
-        selfdestruct(requester); // this failed, give funds back
-    }
-    function denyApproval() onlyOwnerMultibox external 
-    {
-        selfdestruct(requester); // this failed, give funds back
-    }
-    function abortApproval() external 
-    {
-        require(msg.sender==requester);
-        selfdestruct(requester); // this failed, give funds back
-    }
-}
-
-
-
 contract KeyValueTree is Owned {
     mapping(bytes32 => bytes32) internal folderNodes; // map of folder to NodeId
 
@@ -528,6 +468,7 @@ contract Multibox is Owned
     event AccessRequested(address, Multibox, KeyValueTree, bytes32);
     event AccessRequestFail(address, Multibox, KeyValueTree, bytes32 nodeId, bool canOwnerWrite);
     event AccessRequestFailNotOwner(address kvtOwner, address multiboxOwner); 
+    event AccessGiven(address, address to);
     
     constructor() public {
         version = 1;
@@ -614,7 +555,10 @@ contract Multibox is Owned
         owner.transfer(address(this).balance);
     }
     
+    // ok so maybe this should be on Multibox level, multibox,kvt, nodeId
     DataRequestEscrow[] accessRequests;
+    mapping(address => uint256) accessRequestsIndex; // map of folder to index
+    
     function requestAccess(KeyValueTree kvt, bytes32 nodeId) public returns(DataRequestEscrow)
     {
         DataRequestEscrow dr;
@@ -627,7 +571,7 @@ contract Multibox is Owned
         if(canWrite)
         {
             dr = new DataRequestEscrow(msg.sender, this, kvt, nodeId); 
-            accessRequests.push(dr);
+            accessRequestsIndex[address(dr)] = accessRequests.push(dr)-1;
             emit AccessRequested(msg.sender, this, kvt, nodeId);
             return dr;
         }
@@ -637,8 +581,18 @@ contract Multibox is Owned
     }
     function allowAccess(DataRequestEscrow dr) public onlyOwner 
     {
-        dr.approve();
-        accessRequests.push(dr);
+        if(dr.approve())
+        {
+            emit AccessGiven(address(dr), dr.whoRequester());
+            uint256 index = accessRequestsIndex[address(dr)];
+            
+            accessRequests[index] = accessRequests[roots.length-1];
+            delete accessRequests[accessRequests.length-1];
+            accessRequests.length--;
+            
+            dr.finalize(); // destroy contract, funds are moved to multibox.owner
+        }
+        dr.denyApproval();
     }
     function amountAvailable(DataRequestEscrow dr) public view returns(uint balance)
     {
@@ -646,3 +600,66 @@ contract Multibox is Owned
     }
 }
 
+// kvt, nodeid
+// what we want: we want to assure that if addr1 gives data to addr2, addr2 will really pay 
+// like escrow:
+// 1. alice request data kvt,nodeid(,key,value) from bob
+// 2. bob sets price
+// 3. alice pays price to escrow
+// 4. bob transfers knt,nodeid,key,value to alice
+// 5. bob takes the money
+
+contract DataRequestEscrow {
+    Multibox multibox;
+    KeyValueTree kvt; 
+    bytes32 nodeId; 
+
+    address payable requester;
+
+    modifier onlyOwnerMultibox() {
+        require(msg.sender == multibox.owner());
+        _;
+    }
+    
+    constructor(address payable whoIsRequesting, Multibox mb, KeyValueTree keyValueTree, bytes32 targetNodeId) public
+    {
+        requester = whoIsRequesting;
+        multibox = mb;
+        kvt = keyValueTree;
+        nodeId = targetNodeId;
+    }
+
+    function deposit() external payable {
+        require(msg.sender==requester);
+        require(msg.value > 0);
+    }
+    
+    function whoRequester() onlyOwnerMultibox public view returns(address payable)
+    {
+        return requester;
+    }
+
+    function approve() onlyOwnerMultibox external returns (bool) {
+        if(kvt.isNode(nodeId))
+        {
+            int readRights = kvt.setNodeAccess(nodeId, requester, 1); // give read permission 
+            if(readRights==1) {
+               return true;
+            }
+        }
+        return false;
+    }
+    function finalize() onlyOwnerMultibox external 
+    {
+        selfdestruct(multibox.owner()); // this failed, give funds back
+    }
+    function denyApproval() onlyOwnerMultibox external 
+    {
+        selfdestruct(requester); // this failed, give funds back
+    }
+    function abortApproval() external 
+    {
+        require(msg.sender==requester);
+        selfdestruct(requester); // this failed, give funds back
+    }
+}
