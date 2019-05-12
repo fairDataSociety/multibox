@@ -303,6 +303,22 @@ contract KeyValueTree {
          return false;
      }
     ///////////////////////////////////////////////////////////////////////////////////////////       
+
+    // getKeyValues 
+    function getKeysValues(bytes32 nodeId) public view returns (bytes32[] memory keys,bytes32[] memory values) {
+         bytes32[] memory ret;
+         if(!canRead(nodeId, msg.sender)) return (ret,ret);
+             
+         keys =  Nodes[nodeId].keys;  
+         values = Nodes[nodeId].values;
+         return (keys, values);
+    }
+    // getKeyValueAt
+    function getKeyValueAt(bytes32 nodeId, uint index) public view returns (bytes32 key, bytes32 value) {
+         if(!canRead(nodeId, msg.sender)) return (0x0,0x0);
+             
+         return (Nodes[nodeId].keys[index],Nodes[nodeId].values[index]);
+    }
     
     ///////////////////////////////////////////////////////////////////////////////////////////
     // getKeys 
