@@ -18,16 +18,16 @@
      temporary = addFolder(root, 0xc96eea3628fe2bbedfaf37cbf7a7c196aa346555e7b0dd60cea44a5319b17945); // everyone r/w   
 */
 /*
-      privatenodeId      = addFolder(rootnodeId, 0x69ebce02fbffacce50622356b97cc93a78f17feb5bf8e8ccacbdb7032e3162dc); // none can r/w
-      publicnodeId       = addFolder(rootnodeId, 0x7e00625d1d39ffe13a119d9085848880ad5ccd078e38677f3a705653326d44ed); 
-      unrestrainednodeId = addFolder(rootnodeId, 0xd0e98c61c165756dc6a3294835afbb596b332b2a27061c997163e623939c6cc0); 
+      privatenodeId      = addFolder(rootNodeId, 0x69ebce02fbffacce50622356b97cc93a78f17feb5bf8e8ccacbdb7032e3162dc); // none can r/w
+      publicnodeId       = addFolder(rootNodeId, 0x7e00625d1d39ffe13a119d9085848880ad5ccd078e38677f3a705653326d44ed); 
+      unrestrainednodeId = addFolder(rootNodeId, 0xd0e98c61c165756dc6a3294835afbb596b332b2a27061c997163e623939c6cc0); 
       
       setNodeAccess(publicnodeId, address(0x0), 1); // everyone can read, but not write
-      setNodeAccess(sharednodeId, address(0x0), 3); // unknown can add, but not read 
+      setNodeAccess(sharedNodeId, address(0x0), 3); // unknown can add, but not read 
       setNodeAccess(unrestrainednodeId, address(0x0), 2); // all can read all can write
 */
 
-// DONE: prepare events, 
+// DONE: prepare events, to enable them replace all //! with "" 
 // TODO: method to move key/value from nodeId to new nodeId 
 // TODO: add nodeId from other kvt, if its possible to do cross-contract node sharing ...  else write additional contract to hold shared data 
 //
@@ -52,12 +52,14 @@ contract KeyValueTree {
         require(msg.sender == owner);
         _;
     }
+    function changeOwner(address payable _newOwner) public onlyOwner { owner = _newOwner; }
 
     bytes32[] folders; // all folder roots
     mapping(bytes32 => uint256) folderIndex; // map of folder to index (starts with 1, not 0!!)
     mapping(bytes32 => bytes32) internal folderNodes; // map of folder to nodeId
     mapping(bytes32 => bytes32) internal nodeIdToFolder; // nodeIds to protocol 
     mapping(bytes32 => Node) internal Nodes; // nodeId to node
+    
     mapping(bytes32 => mapping(bytes32 => bytes32[])) internal keyFolderValues; // feeds by sender by folder
     
     // AccessRights
@@ -147,18 +149,18 @@ contract KeyValueTree {
     }
     
     // should these be public, or private? and accessed through methods that also check accessRights ? 
-    bytes32 public rootnodeId; // root of tree
-    bytes32 public sharednodeId; // incoming node id
+    bytes32 public rootNodeId; // root of tree
+    bytes32 public sharedNodeId; // incoming node id
     
-    function getRoot() public view returns (bytes32) { return rootnodeId; }
-    function getShared() public view returns (bytes32) { return sharednodeId; }
+    function getRootId() public view returns (bytes32) { return rootNodeId; }
+    function getSharedId() public view returns (bytes32) { return sharedNodeId; }
     
     // constructor
     constructor(address payable _owner) public {
       owner = _owner;         
-      rootnodeId         = addNode(0, 0xc7f5bbf5fe95923f0691c94f666ac3dfed12456cd33bd018e7620c3d93edd5a6); // the root of all, onlyOwner r/w  c7f5bbf5fe95923f0691c94f666ac3dfed12456cd33bd018e7620c3d93edd5a6
-      sharednodeId       = addFolder(rootnodeId, 0x23e642b7242469a5e3184a6566020c815689149967703a98c0affc14b9ca9b28);
-      // setNodeAccess(sharednodeId, address(0x0), 3); // unknown can add, but not read 
+      rootNodeId         = addNode(0, 0xc7f5bbf5fe95923f0691c94f666ac3dfed12456cd33bd018e7620c3d93edd5a6); // the root of all, onlyOwner r/w  c7f5bbf5fe95923f0691c94f666ac3dfed12456cd33bd018e7620c3d93edd5a6
+      sharedNodeId       = addFolder(rootNodeId, 0x23e642b7242469a5e3184a6566020c815689149967703a98c0affc14b9ca9b28);
+      // setNodeAccess(sharedNodeId, address(0x0), 3); // unknown can add, but not read 
     }
     
     function setNodeAccess(bytes32 nodeId, address addr, int rights) /*onlyOwner*/ public returns (int) {
@@ -234,10 +236,10 @@ contract KeyValueTree {
     function addFolder(bytes32 parentnodeId, bytes32 subFolder) public returns (bytes32) {
         bytes32 parentId = parentnodeId;
         if(!isNode(parentId)) // parentNode is not a node, then write to root
-           parentId = rootnodeId;
+           parentId = rootNodeId;
         
         if(!canRead(parentId, msg.sender)) // no read permission for parent
-           parentId = sharednodeId;
+           parentId = sharedNodeId;
 
         bytes32 subNode = folderNodes[subFolder]; // "/bin" -> hash
         if(subNode != 0) // if subProtocol exists as protocol, then fail
@@ -271,9 +273,9 @@ contract KeyValueTree {
          bytes32 targetNode = folderNodes[folder];
          
          if(targetNode==0) {// folder does not exist in mapping to all folder
-            bytes32 makeSubFolderIn = sharednodeId; // everything goes to incoming
+            bytes32 makeSubFolderIn = sharedNodeId; // everything goes to incoming
             if(msg.sender == owner) // owner can create in root 
-               makeSubFolderIn = rootnodeId;
+               makeSubFolderIn = rootNodeId;
               
             targetNode = addFolder(makeSubFolderIn, folder);
          }
@@ -394,10 +396,10 @@ contract KeyValueTree {
          bytes32 nodeId = folderNodes[folder];
          if(nodeId==0) // does not exist
          {
-            if(!canRead(rootnodeId, msg.sender)) 
+            if(!canRead(rootNodeId, msg.sender)) 
                return 0x0;        
             else     
-               return rootnodeId;
+               return rootNodeId;
          }        
 
          return folderNodes[folder];
@@ -411,10 +413,10 @@ contract KeyValueTree {
          
          if(nodeIdToFolder[nodeId]==0) // does not exist
          {
-            if(!canRead(rootnodeId, msg.sender)) 
+            if(!canRead(rootNodeId, msg.sender)) 
                 return 0x0;        
             else     
-                return rootnodeId;
+                return rootNodeId;
          }        
          
          if(!canRead(nodeId, msg.sender)) return 0x0;           
@@ -455,6 +457,7 @@ contract Multibox
         require(msg.sender == owner);
         _;
     }
+    function changeOwner(address payable _newOwner) public onlyOwner { owner = _newOwner; }
     // addresses of roots     
     KeyValueTree[] roots; 
     
@@ -492,9 +495,9 @@ contract Multibox
     function createRoot(address whoHasReadWriteRights) public returns (KeyValueTree) {
         KeyValueTree kvt = new KeyValueTree(owner);
         if(roots.length==0)
-          kvt.setNodeAccess(kvt.getShared(), whoHasReadWriteRights, 3); // first root shared node can anyone write to, but can't read from
+          kvt.setNodeAccess(kvt.getSharedId(), whoHasReadWriteRights, 3); // first root shared node can anyone write to, but can't read from
         else 
-          kvt.setNodeAccess(kvt.getShared(), whoHasReadWriteRights, 2); // whoHasReadWriteRights r/w 
+          kvt.setNodeAccess(kvt.getSharedId(), whoHasReadWriteRights, 2); // whoHasReadWriteRights r/w 
           
         //!emit RootCreated(kvt);  
         return addRoot(kvt);
@@ -697,7 +700,6 @@ contract Multibox
             if(dr.approve())
             {
                 //emit AccessGiven(address(dr), dr.whoRequester());
-                
                 accessRequestsIndex[address(dr)] = 0;
                 
                 accessRequests[index-1] = accessRequests[accessRequests.length-1];
@@ -725,18 +727,18 @@ contract Multibox
 // 4. bob transfers knt,nodeId,key,value to alice
 // 5. bob takes the money
 
+// this could be extended to buy/sell 
 contract DataRequestEscrow {
     Multibox multibox;
     KeyValueTree kvt; 
     bytes32 nodeId; 
 
     address payable requester;
-
     modifier onlyOwnerMultibox() {
         require(msg.sender == multibox.owner());
         _;
     }
-    
+
     constructor(address payable whoIsRequesting, Multibox mb, KeyValueTree keyValueTree, bytes32 targetnodeId) public
     {
         requester = whoIsRequesting;
@@ -750,7 +752,7 @@ contract DataRequestEscrow {
         require(msg.value > 0);
     }
     
-    function whoRequester() onlyOwnerMultibox public view returns(address payable)
+    function whoIsRequester() onlyOwnerMultibox public view returns(address payable)
     {
         return requester;
     }
@@ -773,7 +775,7 @@ contract DataRequestEscrow {
     {
         selfdestruct(requester); // this failed, give funds back
     }
-    function abortApproval() external 
+    function abortRequest() external 
     {
         require(msg.sender==requester);
         selfdestruct(requester); // this failed, give funds back

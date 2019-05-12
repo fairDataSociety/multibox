@@ -88,7 +88,7 @@ contract('Multibox', (accounts) => {
         const mb1 = await Multibox.deployed();
         let roots = await mb1.getRoots({ from: accounts[0] });
         let kvt  = await KeyValueTree.at(roots[0]);
-        let sharedNodeId = await kvt.getShared({ from: accounts[0] });
+        let sharedNodeId = await kvt.getSharedId({ from: accounts[0] });
 
         assert.notEqual(sharedNodeId, 0, "didn't got sharedNode");
     });
@@ -104,11 +104,11 @@ contract('Multibox', (accounts) => {
         //console.log('       num folders:' + folders.length);
         //console.log('       folder:' + folders[0]);
     });
-    it('get shared node', async () => {
+    it('shared folder maps to shared node', async () => {
         const mb1 = await Multibox.deployed();
         let roots = await mb1.getRoots({ from: accounts[0] });
         let kvt = await KeyValueTree.at(roots[0]);
-        let sharedNodeId = await kvt.getShared({ from: accounts[0] });
+        let sharedNodeId = await kvt.getSharedId({ from: accounts[0] });
         let folders = await kvt.getFolders({ from: accounts[0] });
 
         let nodeId = await kvt.getNodeId(folders[0], { from: accounts[0] }); // lookup nodeId through folder
@@ -124,7 +124,7 @@ contract('Multibox', (accounts) => {
         const mb1 = await Multibox.deployed();
         let roots = await mb1.getRoots({ from: accounts[0] });
         let kvt = await KeyValueTree.at(roots[0]);
-        let sharedNodeId = await kvt.getShared({ from: accounts[0] });
+        let sharedNodeId = await kvt.getSharedId({ from: accounts[0] });
         let folders = await kvt.getFolders({ from: accounts[0] });
 
         let keyToWrite = "0x000000000000000000000000000000000000000000000000000000000000b07b";
@@ -148,7 +148,7 @@ contract('Multibox', (accounts) => {
         const mb1 = await Multibox.deployed();
         let roots = await mb1.getRoots({ from: accounts[0] });
         let kvt = await KeyValueTree.at(roots[0]);
-        let sharedNodeId = await kvt.getShared({ from: accounts[0] });
+        let sharedNodeId = await kvt.getSharedId({ from: accounts[0] });
         let keyToWrite   = "0x0000000000000000000000000000000000000000000000000000000000002222";
         let valueToWrite = "0x2222222222222222222222222222222222222222222222222222222222222222";
 
@@ -163,13 +163,37 @@ contract('Multibox', (accounts) => {
         
         let numValues = await kvt.getValuesCount(sharedNodeId, { from: accounts[0] });
         let numKeys = await kvt.getKeysCount(sharedNodeId, { from: accounts[0] });
-
-
         //console.log('       written:' + valueWritten);
         //console.log('       values count:' + numValues);
         //console.log('       keys count:' + numKeys);
-
         assert.equal(numValues.toString(), numKeys.toString(), "miscount key/value");
+    });
+    it('write to root node from other account', async () => {
+        const mb1 = await Multibox.deployed();
+        let roots = await mb1.getRoots({ from: accounts[0] });
+        let kvt = await KeyValueTree.at(roots[0]);
+        let nodeId = await kvt.getRootId({ from: accounts[0] });
+        let keyToWrite = "0x0000000000000000000000000000000000000000000000000000000000003333";
+        let valueToWrite = "0x3333333333333333333333333333333333333333333333333333333333333333";
+
+        let wasWritenTx = await kvt.setKeyValue(nodeId, keyToWrite, valueToWrite, { from: accounts[1] });
+        let count = await kvt.getValuesCount(nodeId, keyToWrite, { from: accounts[0] });
+        //console.log(count);
+        assert.equal(count.toString(), "1", "value was written even when user had no access");
+    });
+    it('write to shared node from other account', async () => {
+        const mb1 = await Multibox.deployed();
+        let roots = await mb1.getRoots({ from: accounts[0] });
+        let kvt = await KeyValueTree.at(roots[0]);
+        let nodeId = await kvt.getSharedId({ from: accounts[0] });
+        let keyToWrite = "0x0000000000000000000000000000000000000000000000000000000000003333";
+        let valueToWrite = "0x3333333333333333333333333333333333333333333333333333333333333333";
+
+        let wasWritenTx = await kvt.setKeyValue(nodeId, keyToWrite, valueToWrite, { from: accounts[1] });
+        let count = await kvt.getValuesCount(nodeId, keyToWrite, { from: accounts[0] });
+
+        console.log(count);
+        assert.equal(count.toString(), "3", "third value was not written to shared node");
     });
     //TODO
     // overwrite key
