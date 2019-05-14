@@ -93,50 +93,49 @@ contract('Multibox', (accounts) => {
         assert.notEqual(sharedNodeId, 0, "didn't got sharedNode");
     });
 
-    it('get kvt folders', async () => {
+    it('get kvt nodes', async () => {
         const mb1 = await Multibox.deployed();
         let roots = await mb1.getRoots({ from: accounts[0] });
         let kvt = await KeyValueTree.at(roots[0]);
 
-        let folders = await kvt.getFolders({ from: accounts[0] });
-        assert.notEqual(folders.length, 0, "got folders");
+        let nodes = await kvt.getNodes({ from: accounts[0] });
+        assert.notEqual(nodes.length, 0, "got nodes");
 
         //console.log('       num folders:' + folders.length);
         //console.log('       folder:' + folders[0]);
     });
-    it('shared folder maps to shared node', async () => {
+    it('shared node is node 0', async () => {
         const mb1 = await Multibox.deployed();
         let roots = await mb1.getRoots({ from: accounts[0] });
         let kvt = await KeyValueTree.at(roots[0]);
         let sharedNodeId = await kvt.getSharedId({ from: accounts[0] });
-        let folders = await kvt.getFolders({ from: accounts[0] });
+        let nodes = await kvt.getNodes({ from: accounts[0] });
 
-        let nodeId = await kvt.getNodeId(folders[0], { from: accounts[0] }); // lookup nodeId through folder
-        assert.equal(sharedNodeId, nodeId, "shared folder does not map to sharedNodeId");
+        //console.log('        nodes:' + nodes);
+        //console.log('       nodeId:' + nodes[0]);
+        //console.log(' sharedNodeId:' + sharedNodeId);
+
+        assert.equal(sharedNodeId, nodes[0], "sharedNode is not node[0]");
         
-        let keys = await kvt.getKeys(nodeId, { from: accounts[0] });
-
-        //console.log('       nodeId:' + sharedNodeId);
+        //let keys = await kvt.getKeys(nodes[0], { from: accounts[0] });
         //console.log('       keys:'  + keys.length);
-        //console.log('       folder:' + folders[0]);
     });
-    it('setKeyValue from folder', async () => {
+    it('setKeyValue to node', async () => {
         const mb1 = await Multibox.deployed();
         let roots = await mb1.getRoots({ from: accounts[0] });
         let kvt = await KeyValueTree.at(roots[0]);
         let sharedNodeId = await kvt.getSharedId({ from: accounts[0] });
-        let folders = await kvt.getFolders({ from: accounts[0] });
 
         let keyToWrite = "0x000000000000000000000000000000000000000000000000000000000000b07b";
         let valueToWrite = "0x1111111111111111111111111111111111111111111111111111111111111111";
 
         let keys = await kvt.getKeys(sharedNodeId, { from: accounts[0] });
-        let wasWritenTx = await kvt.setKeyValueFolder(folders[0], keyToWrite, valueToWrite, { from: accounts[0] });
+        let wasWritenTx = await kvt.setKeyValue(sharedNodeId, keyToWrite, valueToWrite, { from: accounts[0] });
 
         let wasWriten = await kvt.getValue(sharedNodeId, keyToWrite, { from: accounts[0] });
         assert.equal(wasWriten, valueToWrite, "value was not written");
 
-        let allValuesWritten = await kvt.getFolderValuesForAKey(sharedNodeId, folders[0], { from: accounts[0] });
+        let allValuesWritten = await kvt.getNodeValuesForAKey(sharedNodeId, keyToWrite, { from: accounts[0] });
 
         let valueCheck = await kvt.getValue(sharedNodeId, keyToWrite, { from: accounts[0] });
         assert.equal(valueCheck, valueToWrite, "not correct written");
@@ -144,7 +143,7 @@ contract('Multibox', (accounts) => {
         //console.log(allValuesWritten);
         //console.log('       written:' + valueCheck);
     });
-    it('setKeyValue from nodeId', async () => {
+    it('writeKeyValue to node', async () => {
         const mb1 = await Multibox.deployed();
         let roots = await mb1.getRoots({ from: accounts[0] });
         let kvt = await KeyValueTree.at(roots[0]);
@@ -152,13 +151,12 @@ contract('Multibox', (accounts) => {
         let keyToWrite   = "0x0000000000000000000000000000000000000000000000000000000000002222";
         let valueToWrite = "0x2222222222222222222222222222222222222222222222222222222222222222";
 
-        let folder = await kvt.getFolder(sharedNodeId, { from: accounts[0] });
-        let wasWritenTx = await kvt.setKeyValue(sharedNodeId, keyToWrite, valueToWrite, { from: accounts[0] });
+        let wasWritenTx = await kvt.writeKeyValue(sharedNodeId, keyToWrite, valueToWrite, { from: accounts[0] });
 
         let wasWriten = await kvt.getValue(sharedNodeId, keyToWrite, { from: accounts[0] });
         assert.equal(wasWriten, valueToWrite, "value was not written");
         
-        let allValuesWritten = await kvt.getFolderValuesForAKey(folder, keyToWrite, { from: accounts[0] });
+        let allValuesWritten = await kvt.getNodeValuesForAKey(sharedNodeId, keyToWrite, { from: accounts[0] });
         //console.log(allValuesWritten);
         
         let numValues = await kvt.getValuesCount(sharedNodeId, { from: accounts[0] });
@@ -214,15 +212,15 @@ contract('Multibox', (accounts) => {
         let children = await kvt.getChildren(nodeId, { from: accounts[0] });
         assert.equal(children.length, 0, "shared should have no child");
 
-        let newFolderId = "0x1231231231231231231231231231231231231231231231231231231231239999";
-        let newNodeId = await kvt.addFolder(nodeId, newFolderId, { from: accounts[0] });
+        let newNodeId = "0x1231231231231231231231231231231231231231231231231231231231239999";
+        let nodeIdTx = await kvt.addChildNode(nodeId, newNodeId, { from: accounts[0] });
 
         children = await kvt.getChildren(nodeId, { from: accounts[0] });
         assert.equal(children.length, 1, "shared should have 1 child");
         //console.log(children);
 
-        let new2FolderId = "0x1231231231231231231231231231231231231231231238888888888888888888";
-        let new2NodeId = await kvt.addFolder(children[0], new2FolderId, { from: accounts[0] });
+        let new2NodeId = "0x1231231231231231231231231231231231231231231238888888888888888888";
+        let nodeId2Tx = await kvt.addChildNode(children[0], new2NodeId, { from: accounts[0] });
 
         children = await kvt.getChildren(children[0], { from: accounts[0] });
         assert.equal(children.length, 1, "first child should have have 1 child");
@@ -241,8 +239,8 @@ contract('Multibox', (accounts) => {
         let keysValues = await kvt.getKeysValues(nodeId, { from: accounts[0] });
         let kv = await kvt.getKeyValueAt(nodeId, 0, { from: accounts[0] });
 
-        console.log(keysValues);
-        console.log(kv);
+        //console.log(keysValues);
+        //console.log(kv);
         //console.log(keysValues.length);
     });
     //TODO

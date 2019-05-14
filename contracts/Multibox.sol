@@ -8,14 +8,7 @@
 
 /*
   so how we tackle access rights? 
-  upon creation root is pupulated with common folders, 
-  Initial folder structure is mapped 
-     root      = newFolder(0); // the root of all, onlyOwner c7f5bbf5fe95923f0691c94f666ac3dfed12456cd33bd018e7620c3d93edd5a6
-     shared    = addFolder(root, 0x23e642b7242469a5e3184a6566020c815689149967703a98c0affc14b9ca9b28); // only those that was shared with
-     dataReceipt  = addFolder(root, 0x1d261cf1849d7042d71f91ae5de9f8e1102f872f83bef6add64509a927939609); // only owner r/w or those shared with
-     incoming  = addFolder(root, 0xe723d028f3a255c87f4d0ff2d83c484a5a279f9791d3fbd87348df86ad478196); // unknown can add, but not read
-     common    = addFolder(root, 0xf7c93b517d753615c49ea5b8b1ea3d75e9d75be99691bcf066226dc260a704be); // everyone r, owner w             
-     temporary = addFolder(root, 0xc96eea3628fe2bbedfaf37cbf7a7c196aa346555e7b0dd60cea44a5319b17945); // everyone r/w   
+  upon creation root could be pupulated with common folders, but this was removed to reduce gas 
 */
 /*
       privatenodeId      = addFolder(rootNodeId, 0x69ebce02fbffacce50622356b97cc93a78f17feb5bf8e8ccacbdb7032e3162dc); // none can r/w
@@ -33,18 +26,6 @@
 //
 
  pragma solidity ^0.5.0;
- /*
- removed and integrated to reduce gas cost
- contract Owned {
-    address payable public owner;
-    modifier onlyOwner() {
-        require(msg.sender == owner);
-        _;
-    }
-    /// @notice The Constructor assigns the message sender to be `owner`
-    constructor () public { owner = msg.sender; }
-    function changeOwner(address payable _newOwner) public onlyOwner { owner = _newOwner; }
-}*/
 
 contract KeyValueTree {
     address payable public owner;
@@ -53,14 +34,22 @@ contract KeyValueTree {
         _;
     }
     function changeOwner(address payable _newOwner) public onlyOwner { owner = _newOwner; }
-
-    bytes32[] folders; // all folder roots
-    mapping(bytes32 => uint256) folderIndex; // map of folder to index (starts with 1, not 0!!)
-    mapping(bytes32 => bytes32) internal folderNodes; // map of folder to nodeId
-    mapping(bytes32 => bytes32) internal nodeIdToFolder; // nodeIds to protocol 
-    mapping(bytes32 => Node) internal Nodes; // nodeId to node
     
-    mapping(bytes32 => mapping(bytes32 => bytes32[])) internal keyFolderValues; // feeds by sender by folder
+    // should these be public, or private? and accessed through methods that also check accessRights ? 
+    bytes32 public rootNodeId; // root of tree
+    bytes32 public sharedNodeId; // incoming node id
+    
+    function getRootId() public view returns (bytes32) { return rootNodeId; }
+    function getSharedId() public view returns (bytes32) { return sharedNodeId; }    
+
+    bytes32[] nodes; // all folder roots
+    mapping(bytes32 => uint256) nodesIndex; // map of folder to index (starts with 1, not 0!!)
+    
+    //mapping(bytes32 => bytes32) internal folderNodes; // map of folder to nodeId
+    //mapping(bytes32 => bytes32) internal nodeIdToFolder; // nodeIds to protocol 
+    
+    mapping(bytes32 => Node) internal Nodes; // nodeId to node
+    mapping(bytes32 => mapping(bytes32 => bytes32[])) internal keyNodeIdValues; // feeds by sender by folder
     
     // AccessRights
     // contains 0x0 = 1, everyone can read/write
@@ -76,14 +65,17 @@ contract KeyValueTree {
         bool      isNode;
         uint      index;
         bytes32   parent;
+        
         // consider putting protocol info in a node 
         mapping(address => int) canAccess;
         mapping(bytes32 => bytes32) valuesMap;
         bytes32[] keys;
         bytes32[] values;
+        
         bytes32[] children;  // child nodes
     }
     
+
    //!event NodeAdded(bytes32);
    //!event NodeRemovedChild(uint256);
    //!event NodeAddChild(bytes32);
@@ -127,9 +119,12 @@ contract KeyValueTree {
          //!emit NodeRemovedChild(index);
          return true;
     }    
-    function addNode(bytes32 nodeId, bytes32 folder) internal returns(bytes32 newId) {
+    function addNode(bytes32 nodeId, bytes32 subNodeId) internal returns(bytes32 newId) {
         if(!isNode(nodeId) && nodeId > 0) revert(); // zero is a new root node
-        newId = keccak256(abi.encodePacked(nodeId, msg.sender, block.number, folder));
+        
+        if(isNode(subNodeId)) revert();
+        //newId = keccak256(abi.encodePacked(nodeId, msg.sender, block.number, folder));
+        newId = subNodeId; 
 
         Node memory node;
         node.parent = nodeId;
@@ -148,21 +143,15 @@ contract KeyValueTree {
         return Nodes[nodeId].children.push(childId) - 1;
     }
     
-    // should these be public, or private? and accessed through methods that also check accessRights ? 
-    bytes32 public rootNodeId; // root of tree
-    bytes32 public sharedNodeId; // incoming node id
-    
-    function getRootId() public view returns (bytes32) { return rootNodeId; }
-    function getSharedId() public view returns (bytes32) { return sharedNodeId; }
-    
     // constructor
     constructor(address payable _owner) public {
       owner = _owner;         
       rootNodeId         = addNode(0, 0xc7f5bbf5fe95923f0691c94f666ac3dfed12456cd33bd018e7620c3d93edd5a6); // the root of all, onlyOwner r/w  c7f5bbf5fe95923f0691c94f666ac3dfed12456cd33bd018e7620c3d93edd5a6
-      sharedNodeId       = addFolder(rootNodeId, 0x23e642b7242469a5e3184a6566020c815689149967703a98c0affc14b9ca9b28);
+      sharedNodeId       = addChildNode(rootNodeId, 0x23e642b7242469a5e3184a6566020c815689149967703a98c0affc14b9ca9b28);
       // setNodeAccess(sharedNodeId, address(0x0), 3); // unknown can add, but not read 
     }
     
+    ///////////////////////////////////////////////////////////////////////////////////////////       
     function setNodeAccess(bytes32 nodeId, address addr, int rights) /*onlyOwner*/ public returns (int) {
        //if(msg.sender!=owner) return -1;
        if(addr==owner) return 2; // owner always has r/w access, this is needed so one can not bloat mapping with owner address
@@ -204,21 +193,21 @@ contract KeyValueTree {
     function deleteNode(bytes32 nodeId) public returns (bool) {
         if(!canWrite(nodeId, msg.sender)) return false;
         
-        bytes32 folder = nodeIdToFolder[nodeId];
-        if(folder==0x0) return false; // no mapping to folder
+        //bytes32 folder = nodeIdToFolder[nodeId];
+        //if(folder==0x0) return false; // no mapping to folder
 
         Node storage node = Nodes[nodeId];
         if(removeChildAt(node.parent, node.index)) 
         {
-            uint256 index = folderIndex[folder]; 
+            uint256 index = nodesIndex[nodeId]; 
             if(index!=0)
             {
-                folderNodes[folder] = 0x0;
-                folderIndex[folder] = 0;
+                Nodes[nodeId].isNode = false;
+                nodesIndex[nodeId] = 0;
         
-                folders[index] = folders[folders.length-1];
-                delete folders[folders.length-1];
-                folders.length--;
+                nodes[index] = nodes[nodes.length-1];
+                delete nodes[nodes.length-1];
+                nodes.length--;
                 
                 //!emit NodeDelete(nodeId, folder);
                 return true;
@@ -233,75 +222,72 @@ contract KeyValueTree {
     // add subProtocol to parentProtocol (protocolnodeId)
     // so if if parent is bin, then add subFolder as "/bin/subFolderName" 
     // returns nodeId of new subFolder or 0x0 if error 
-    function addFolder(bytes32 parentnodeId, bytes32 subFolder) public returns (bytes32) {
-        bytes32 parentId = parentnodeId;
+    function addChildNode(bytes32 parentNodeId, bytes32 subNodeId) public returns (bytes32) {
+        bytes32 parentId = parentNodeId;
         if(!isNode(parentId)) // parentNode is not a node, then write to root
            parentId = rootNodeId;
         
         if(!canRead(parentId, msg.sender)) // no read permission for parent
            parentId = sharedNodeId;
 
-        bytes32 subNode = folderNodes[subFolder]; // "/bin" -> hash
-        if(subNode != 0) // if subProtocol exists as protocol, then fail
+        if(isNode(subNodeId)) // if subProtocol exists as protocol, then fail
         {
-            if(!canRead(subNode, msg.sender)) // no read permission 
+            if(!canRead(subNodeId, msg.sender)) // no read permission 
                return 0x0;
                
-            return subNode;
+            return subNodeId;
         }
         
         if(!canWrite(parentId, msg.sender)) // no write permission
            return 0x0;
         
-        bytes32 newnodeId = addNode(parentId, subFolder); // add child to parent
+        bytes32 newNodeId = addNode(parentId, subNodeId); // add child to parent
 
-        folderNodes[subFolder] = newnodeId; 
-        folderIndex[subFolder] = folders.push(subFolder);
-        
-        nodeIdToFolder[newnodeId] = subFolder; // we need mapping to folder from nodeId
-        
+        //folderNodes[subNodeId] = newNodeId; 
+        nodesIndex[subNodeId] = nodes.push(subNodeId);
+        //nodeIdToFolder[newNodeId] = subNodeId; // we need mapping to folder from nodeId
         //!emit AddFolder(newnodeId, subFolder);
         
         if(msg.sender!=owner)
-          setNodeAccess(newnodeId, msg.sender, 2); // give r/w access to creator of node
+          setNodeAccess(newNodeId, msg.sender, 2); // give r/w access to creator of node
            
-        return newnodeId; 
+        return newNodeId; 
     }
     ///////////////////////////////////////////////////////////////////////////////////////////      
     // setKeyValue, will suceed only when no such key with value exist
-    function setKeyValueFolder(bytes32 folder, bytes32 key, bytes32 value) public returns (bool) {
-         bytes32 targetNode = folderNodes[folder];
+    function setKeyValue(bytes32 nodeId, bytes32 key, bytes32 value) public returns (bool) {
+         //Node memory targetNode = Nodes[nodeId];
          
-         if(targetNode==0) {// folder does not exist in mapping to all folder
-            bytes32 makeSubFolderIn = sharedNodeId; // everything goes to incoming
+         if(!isNode(nodeId)) {// folder does not exist in mapping to all folder
+            bytes32 makeChildIn = sharedNodeId; // everything goes to incoming
             if(msg.sender == owner) // owner can create in root 
-               makeSubFolderIn = rootNodeId;
+               makeChildIn = rootNodeId;
               
-            targetNode = addFolder(makeSubFolderIn, folder);
+            nodeId = addChildNode(makeChildIn, nodeId);
          }
          //!emit KeyValueSetFolder(targetNode, folder);
-         
-         return setKeyValue(targetNode, key, value);
+         return writeKeyValue(nodeId, key, value);
     }
-    function setKeyValue(bytes32 nodeId, bytes32 key, bytes32 value) public returns (bool) {
+    function writeKeyValue(bytes32 nodeId, bytes32 key, bytes32 value) public returns (bool) {
          if(!canWrite(nodeId, msg.sender)) // no read permission for parent
            return false;
          
          Node storage node = Nodes[nodeId];
-         bytes32 folder = getFolder(nodeId);
-         if(node.valuesMap[key] == 0x0) // no such value yet
+         
+         if(node.valuesMap[key] == 0x0) // no such value yet, could be replaced by keyNodeIdValues[key][folder].length==0
          {
             node.keys.push(key);
             node.values.push(value); 
+            
             node.valuesMap[key] = value;
-            keyFolderValues[key][folder].push(value);
+            keyNodeIdValues[key][nodeId].push(value);
             //!emit KeyValueSet(nodeId, key, value);
             return true; 
          } 
          
-         keyFolderValues[key][folder].push(value);
+         keyNodeIdValues[key][nodeId].push(value);
          return false;
-     }
+    }
     ///////////////////////////////////////////////////////////////////////////////////////////       
 
     // getKeyValues 
@@ -375,8 +361,8 @@ contract KeyValueTree {
             node.keys[index] = key;
             node.values[index] = newValue; 
             node.valuesMap[key] = newValue; //
-            bytes32 folder = getFolder(nodeId);
-            keyFolderValues[key][folder].push(newValue);
+            
+            keyNodeIdValues[key][nodeId].push(newValue);
             
             //!emit OverwriteKeyValue(nodeId,index,key,newValue);
             return true;
@@ -408,53 +394,26 @@ contract KeyValueTree {
     }
     
     ///////////////////////////////////////////////////////////////////////////////////////////      
-    function getNodeId(bytes32 folder) view public returns (bytes32) { // will get protocol node address
-         bytes32 nodeId = folderNodes[folder];
-         if(nodeId==0) // does not exist
-         {
-            if(!canRead(rootNodeId, msg.sender)) 
-               return 0x0;        
-            else     
-               return rootNodeId;
-         }        
-
-         return folderNodes[folder];
-    }
-    ///////////////////////////////////////////////////////////////////////////////////////////      
-    function getFolderIndex(bytes32 folder) view public returns (uint256) { // will get protocol node address
-         return folderIndex[folder];
-     }
-    // get folder by nodeId
-    function getFolder(bytes32 nodeId) view public returns (bytes32) {
-         
-         if(nodeIdToFolder[nodeId]==0) // does not exist
-         {
-            if(!canRead(rootNodeId, msg.sender)) 
-                return 0x0;        
-            else     
-                return rootNodeId;
-         }        
-         
-         if(!canRead(nodeId, msg.sender)) return 0x0;           
-         return nodeIdToFolder[nodeId];
+    function getNodesIndex(bytes32 nodeId) view public returns (uint256) { // will get protocol node address
+         return nodesIndex[nodeId];
      }
 
     // ONLY OWNERS CAN ACCESS COMPLETE INFORMATION
     ///////////////////////////////////////////////////////////////////////////////////////////      
     // get all values ever, chronologically, never gets deleted, only added
-    function getFolderValuesForAKey(bytes32 folder, bytes32 key) onlyOwner view public returns (bytes32[] memory) {
-       return keyFolderValues[key][folder];
+    function getNodeValuesForAKey(bytes32 nodeId, bytes32 key) onlyOwner view public returns (bytes32[] memory) {
+       return keyNodeIdValues[key][nodeId];
     }
      
     ///////////////////////////////////////////////////////////////////////////////////////////      
-    function getFolders() onlyOwner view public returns (bytes32[] memory) { // get all folder
-     return folders;
+    function getNodes() onlyOwner view public returns (bytes32[] memory) { // get all folder
+     return nodes;
     }     
-    function getFoldersCount() onlyOwner view public returns (uint256) { // get num of folder
-     return folders.length;
+    function getNodeCount() onlyOwner view public returns (uint256) { // get num of folder
+     return nodes.length;
     }
-    function getFolderAt(uint256 idx) onlyOwner view public returns (bytes32) { // get folder by idx
-     return folders[idx];
+    function getNodeAt(uint256 idx) onlyOwner view public returns (bytes32) { // get folder by idx
+     return nodes[idx];
     }
     ///////////////////////////////////////////////////////////////////////////////////////////
     
@@ -573,117 +532,7 @@ contract Multibox
         //!emit FundsRemoved(address(this).balance);
         owner.transfer(address(this).balance);
     }
-    
-    /*
-    struct DataRequest {
-        KeyValueTree kvt; 
-        bytes32 nodeId; 
 
-        address payable requester;
-        uint256 availableBalance;
-    }
-    DataRequest[] accessRequests;
-    mapping(bytes32 => uint256) accessRequestsIndex; // map of folder to index (+1)
-    uint256 reservedFunds;
-    
-    function requestAccess(KeyValueTree kvt, bytes32 nodeId) public returns(bytes32 newId)
-    {
-        bool canWrite = kvt.canWrite(nodeId, owner);
-        if(kvt.owner()!=this.owner())
-        {
-            //!emit AccessRequestFailNotOwner(kvt.owner(), this.owner());
-            return 0x0;
-        }
-        if(canWrite)
-        {
-            newId = keccak256(abi.encodePacked(nodeId, msg.sender, block.number, kvt));
-
-            DataRequest memory dr;
-            dr.kvt = kvt;
-            dr.nodeId = nodeId;
-            dr.requester = msg.sender;
-            accessRequestsIndex[newId] = accessRequests.push(dr);
-            //!emit AccessRequested(msg.sender, this, kvt, nodeId);
-            return newId;
-        }
-        
-        //!emit AccessRequestFail(msg.sender, this, kvt, nodeId, canWrite);
-        return 0x0;
-    }
-    
-    function depositFor(bytes32 requestId) external payable {
-        uint256 index = accessRequestsIndex[requestId];
-        require(index!=0);
-        require(msg.value > 0);
-        
-        DataRequest memory dr = accessRequests[index-1]; 
-        require(msg.sender == dr.requester);
-        
-        dr.availableBalance += msg.value;
-    }
-    function terminateRequest(bytes32 requestId) external  // terminate request
-    {
-        uint256 index = accessRequestsIndex[requestId];
-        require(index!=0);
-        
-        DataRequest memory dr = accessRequests[index-1]; 
-        require(msg.sender == dr.requester);
-        
-        if(dr.availableBalance>0)
-           dr.requester.transfer(dr.availableBalance);
-           
-        removeRequest(requestId); 
-    }
-    function removeRequest(bytes32 requestId) public returns (bool)
-    {
-        uint256 index = accessRequestsIndex[requestId];
-        require(index!=0);
-        
-        DataRequest memory dr = accessRequests[index]; 
-        if(msg.sender != dr.requester || msg.sender!=owner) return false;
-        //!emit AccessTerminated(address(dr), dr.whoRequester());
-                
-        accessRequestsIndex[requestId] = 0;
-        accessRequests[index-1] = accessRequests[accessRequests.length-1];
-        delete accessRequests[accessRequests.length-1];
-        accessRequests.length--;
-    }
-    function allowAccess(bytes32 dataRequestId) public onlyOwner returns (bool)
-    {
-        uint256 index = accessRequestsIndex[dataRequestId];
-        if(index!=0) 
-        {
-            DataRequest memory dr = accessRequests[index]; 
-            
-            if(dr.approve())
-            {
-                emit AccessGiven(address(dr), dr.whoRequester());
-                
-                accessRequestsIndex[address(dr)] = 0;
-                
-                accessRequests[index-1] = accessRequests[accessRequests.length-1];
-                delete accessRequests[accessRequests.length-1];
-                accessRequests.length--;
-                
-                dr.finalize(); // destroy contract, funds are moved to multibox.owner
-            }
-        }
-        //dr.denyApproval();
-        return false;
-    }
-    function amountAvailable(bytes32 dataRequestId) public view returns(uint256 balance)
-    {
-        uint256 index = accessRequestsIndex[dataRequestId];
-        if(index!=0)
-        {
-            DataRequest memory dr = accessRequests[index];
-            return dr.availableBalance;
-        }
-        return 0;
-    }
-    
-    */
-    
     // ok so maybe this should be on Multibox level, multibox,kvt, nodeId
     DataRequestEscrow[] accessRequests;
     mapping(address => uint256) accessRequestsIndex; // map of folder to index (+1)
