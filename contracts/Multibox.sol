@@ -35,6 +35,16 @@ contract KeyValueTree {
     }
     function changeOwner(address payable _newOwner) public onlyOwner { owner = _newOwner; }
     
+    bytes32 public receiver; // location of of the receiver, if 0x0, its for owner, otherwise privatekey of receiver is required as data in locatations will be encrypted for receiver
+    bytes32 public description; // location of kvt description
+    
+    function getReceiver() public view returns (bytes32) { return receiver; }
+    function getDescription() public view returns (bytes32) { return description; }
+    
+    function setReceiver(bytes32 newReceiver) public onlyOwner { receiver=newReceiver; }
+    function setDescription(bytes32 newDescription) public onlyOwner  { description=newDescription; }    
+
+    
     // should these be public, or private? and accessed through methods that also check accessRights ? 
     bytes32 public rootNodeId; // root of tree
     bytes32 public sharedNodeId; // incoming node id
@@ -297,7 +307,7 @@ contract KeyValueTree {
              
          keys =  Nodes[nodeId].keys;  
          values = Nodes[nodeId].values;
-         return (keys, values);
+         //return (keys, values);
     }
     // getKeyValueAt
     function getKeyValueAt(bytes32 nodeId, uint index) public view returns (bytes32 key, bytes32 value) {
@@ -415,6 +425,11 @@ contract KeyValueTree {
     function getNodeAt(uint256 idx) onlyOwner view public returns (bytes32) { // get folder by idx
      return nodes[idx];
     }
+    
+    //function getNode(bytes32 nodeId) onlyOwner view public returns (bytes32) { // get folder by idx
+    //  Node storage node = Nodes[nodeId];
+    //  return nodes[idx];
+    //}
     ///////////////////////////////////////////////////////////////////////////////////////////
     
     // fallback function to accept ETH into contract.
@@ -443,7 +458,7 @@ contract Multibox
     //!event RootRemoved(uint256);
     //!event RootRevoked(uint256);
     //!event FundsRemoved(uint256);
-    
+    ////////////////////////////////////////////////////////////////////////////////////////////////
     //!event AccessRequested(address, Multibox, KeyValueTree, bytes32);
     //!event AccessRequestFail(address, Multibox, KeyValueTree, bytes32 nodeId, bool canOwnerWrite);
     //!event AccessRequestFailNotOwner(address kvtOwner, address multiboxOwner); 
@@ -580,7 +595,10 @@ contract Multibox
     {
         return address(dr).balance;
     }
-    
+    function getDataRequests() public view returns(DataRequestEscrow[] memory requests)
+    {
+        return accessRequests;
+    }
 }
 
 // kvt, nodeId
@@ -597,6 +615,7 @@ contract DataRequestEscrow {
     Multibox multibox;
     KeyValueTree kvt; 
     bytes32 nodeId; 
+    bytes32 proofData;
 
     address payable requester;
     modifier onlyOwnerMultibox() {
@@ -622,7 +641,7 @@ contract DataRequestEscrow {
         return requester;
     }
 
-    function approve() onlyOwnerMultibox external returns (bool) {
+    function approve() public  /*onlyOwnerMultibox external*/ returns (bool) {
         if(kvt.isNode(nodeId))
         {
             int readRights = kvt.setNodeAccess(nodeId, requester, 1); // give read permission 
@@ -632,6 +651,22 @@ contract DataRequestEscrow {
         }
         return false;
     }
+    function setProofOwnerShared(bytes32 proofDataLocation) onlyOwnerMultibox public returns (bool) {
+        proofData = proofDataLocation;
+    }
+    
+    function verifyOwnerShared(bytes32 h, uint8 v, bytes32 r, bytes32 s) public returns (address) {
+        bytes memory prefix = "\x19Ethereum Signed Message:\n32";
+
+        bytes32 dataHash = keccak256(abi.encodePacked(prefix, h));
+        address addr = ecrecover(dataHash, v, r, s);
+        
+        //proofOfSharing == data1Hash;
+        if(addr == kvt.owner())
+           approve();
+        else 
+           abortRequest();
+    }
     function finalize() onlyOwnerMultibox external 
     {
         selfdestruct(multibox.owner()); // this failed, give funds back
@@ -640,7 +675,7 @@ contract DataRequestEscrow {
     {
         selfdestruct(requester); // this failed, give funds back
     }
-    function abortRequest() external 
+    function abortRequest() public  
     {
         require(msg.sender==requester);
         selfdestruct(requester); // this failed, give funds back
