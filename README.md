@@ -14,7 +14,6 @@ Multibox is meant to be used in conjunction with the fds.js library and Swarm’
 Keep in mind that some of the functionality was taken out due to optimization, to reduce gas consumption costs or simply because off chain manipulation is required due to technological limitations.
 
 ## Multibox is composed of three contracts:
-
 - Main contract, ie. Multibox, 
 - key-value tree contract (tree), 
 - data access request contract
@@ -36,7 +35,6 @@ Controlling access rights can be done only by owner of tree contract on each nod
 
 But what is someone tracks all transactions on blockchain? He can know what is written in each node? Well data at locations is still encrypted, so going through this effort is useless. 
 
-
 ### Data Access Request
 - Similar to an escrow account
 - Other multiboxes and accounts can ask for access 
@@ -47,78 +45,58 @@ But what is someone tracks all transactions on blockchain? He can know what is w
 Data access request contract is similar to an escrow account and supports the deposit and withdrawal of funds from it. Other multibox owners can send an access rights request to a multibox for specific tree and node. 
 
 #### Requesting data access 
-If owner grants access rights to it, deposit is transfered. This procedure is a bit more complicated, as its not only the rights to node must be given, also a private key must be shared somehow.
+If owner grants access rights to it, deposit is transfered. This procedure is a bit more complicated, as its not only the rights to node must be given, also a private key must be shared.
+This is usually shared to requestors KVT0 '/shared/access/rights/kvtAddress'.   
 
 
 
 
 
-## Installation
-
+# Installation
 Install Truffle
-
 `npm install -g truffle`
 
 Install Ganache-Cli
-
 `npm install -g ganache-cli`
 
 Start Ganache-Cli
-
 `ganache-cli`
 
 Run Migrations
-
 `truffle migrate`
 
-
 ## Development
-
 Run Tests
-
 `truffle test`
 
 Use Console
-
 `truffle console`
 
 Refresh Contracts
-
 `truffle migrate`
 
 ## Debugging
 
 Debug Using Chrome
-
 Find out where your node binary is....
-
 `which node`
 
 `/Users/significance/.nvm/versions/node/v8.11.2/bin/node`
 
 work out where the js file that runs the node cli is
-
 `/Users/significance/.nvm/versions/node/v8.11.2/lib/node_modules/truffle/build/cli.bundled.js`
 
 run this with the `--inspect-bk` flag, `test` keyword and path to your test.
-
 `node --inspect-bk /Users/significance/.nvm/versions/node/v8.11.2/lib/node_modules/truffle/build/cli.bundled.js test test/multibox.js`
 
 navigate to `chrome://inspect`
-
 click `Open dedicated DevTools for Node`
-
 click `Sources`
-
 click `Add Folder to Workspace` and select your tests folder.
 
 now running
-
 `node --inspect-bk /Users/significance/.nvm/versions/node/v8.11.2/lib/node_modules/truffle/build/cli.bundled.js test test/multibox.js`
 
 should show in the devtools console.
-
-
-
 
 https://ethereum.stackexchange.com/a/43633/3883
