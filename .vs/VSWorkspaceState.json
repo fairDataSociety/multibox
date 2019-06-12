@@ -2,8 +2,9 @@
   "ExpandedNodes": [
     "",
     "\\contracts",
-    "\\migrations"
+    "\\migrations",
+    "\\test"
   ],
-  "SelectedNode": "\\contracts\\Multibox.sol",
+  "SelectedNode": "\\migrations\\2_deploy_contracts.js",
   "PreviewInSolutionExplorer": false
 }

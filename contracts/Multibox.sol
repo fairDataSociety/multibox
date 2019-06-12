@@ -25,7 +25,7 @@
 // TODO: add nodeId from other kvt, if its possible to do cross-contract node sharing ...  else write additional contract to hold shared data 
 //
 
- pragma solidity ^0.5.0;
+pragma solidity ^0.5.0;
 
 contract KeyValueTree {
     address payable public owner;
@@ -440,8 +440,7 @@ contract KeyValueTree {
     }    
 }
 
-contract Multibox
-{
+contract Multibox {
     address payable public owner;
     modifier onlyOwner() {
         require(msg.sender == owner);
