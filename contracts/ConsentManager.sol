@@ -33,7 +33,8 @@ contract ConsentManager {
     function updateConsent(Consent consent, bytes32 swarmLocation) public returns (Consent) {
         Consent newConsent = new Consent(consent.dataUser(), consent.dataSubject(), swarmLocation);
         
-        consent.updateConsent(newConsent);
+        //consent.updateConsent(newConsent);
+        address(consent).call(abi.encodePacked("updateConsent(Consent)", consent));
         
         consentsOnSwarm[swarmLocation].push(consent);
         
@@ -83,7 +84,7 @@ contract Consent {
     enum ConsentStatus {AWAITINGSIGNATURE,ACTIVE,EXPIRED,REVOKED}
     ConsentStatus public status;
     
-    bytes32 private swarmHash;
+    bytes32 public swarmHash;
     address payable public dataUser;
     address payable public dataSubject;
     //uint256 public validUntil;
