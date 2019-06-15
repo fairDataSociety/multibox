@@ -31,6 +31,9 @@ contract ConsentManager {
     }
     
     function updateConsent(Consent consent, bytes32 swarmLocation) public returns (Consent) {
+        if(msg.sender!=address(consent.dataSubject) || msg.sender!=address(consent.dataUser)) 
+           return Consent(0x0);
+        
         Consent newConsent = new Consent(consent.dataUser(), consent.dataSubject(), swarmLocation);
         
         //consent.updateConsent(newConsent);
