@@ -73,17 +73,21 @@ contract('ConsentManager', (accounts) => {
     let msg = tx1[0];
     let h = web3.utils.sha3(msg);
 
-    let sigg = await web3.eth.sign(h, dataUser, privateKeyAcc0);
+    let sigg = await web3.eth.sign(h, dataUser);
     var sig = sigg.slice(2);
     var v = web3.utils.toDecimal(sig.slice(128, 130)) + 27;    
     var r = `0x${sig.slice(0, 64)}`;
     var s = `0x${sig.slice(64, 128)}`
 
-    let tx2 = await con.signUser(h, v, r, s);
-
     let tx5 = await con.isUserSigned();
 
-    assert.equal(tx5, true, "consent was not signed by user");
+    assert.equal(tx5, false, "consent was not yet signed by user");
+
+    let tx2 = await con.signUser(h, v, r, s);
+
+    let tx6 = await con.isUserSigned();
+
+    assert.equal(tx6, true, "consent was not signed by user");    
   });
   
   it('subject signs consent', async () => {
@@ -94,17 +98,20 @@ contract('ConsentManager', (accounts) => {
     let msg = tx1[0];
     let h = web3.utils.sha3(msg);
 
-    let sigg = await web3.eth.sign(h, dataSubject, privateKeyAcc1);
+    let sigg = await web3.eth.sign(h, dataSubject);
     let sig = sigg.slice(2);
     let v = web3.utils.toDecimal(sig.slice(128, 130)) + 27;    
     let r = `0x${sig.slice(0, 64)}`;
     let s = `0x${sig.slice(64, 128)}`
 
+    let tx5 = await con.isSubjectSigned();
+    assert.equal(tx5, false, "consent was not yet signed by subject");    
+
     let tx2 = await con.signSubject(h, v, r, s);
 
-    let tx5 = await con.isSubjectSigned();
+    let tx6 = await con.isSubjectSigned();
 
-    assert.equal(tx5, true, "consent was not signed by subject");    
+    assert.equal(tx6, true, "consent was not signed by subject");    
   });
 
 
