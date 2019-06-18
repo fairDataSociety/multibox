@@ -67,6 +67,9 @@ contract ConsentManager {
 }
 
 contract Consent {
+
+    event LogA(address A, address B);
+
     function () external payable {    }
     function removeFunds()  public { 
         require(msg.sender == dataSubject);
@@ -133,12 +136,12 @@ contract Consent {
 
     function signUser(bytes32 h, uint8 v, bytes32 r, bytes32 s) public returns (address) {
         require(userSigned==false);
-        userSigned = signFor(dataUser, h,v,r,s);
+        userSigned = signForRaw(dataUser, h,v,r,s);
         transitionToActive();
     }
     function signSubject(bytes32 h, uint8 v, bytes32 r, bytes32 s) public returns (address) {
         require(subjectSigned==false);
-        subjectSigned = signFor(dataSubject, h,v,r,s);
+        subjectSigned = signForRaw(dataSubject, h,v,r,s);
         transitionToActive();
     }
     
@@ -150,4 +153,10 @@ contract Consent {
         
         return (addr == forParty);
     }
+
+    function signForRaw(address payable forParty, bytes32 h, uint8 v, bytes32 r, bytes32 s) private returns (bool) {
+        address addr = ecrecover(h, v, r, s);
+        emit LogA(addr, forParty);        
+        return (addr == forParty);
+    }    
 }

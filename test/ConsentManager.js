@@ -7,9 +7,10 @@ let swarmHash1 = '0xc016ed5d54e357cb4a7460cb1b13b3f499dc4f428453fec21613e9339faa
 let swarmHash2 = '0xc016ed5d54e357cb4a7460cb1b13b3f499dc4f428453fec21613e9339faaeb3f';
 
 //just copy paste from ganache-cli now, later we can https://ethereum.stackexchange.com/questions/60995/how-to-get-private-keys-on-truffle-from-ganache-accounts
-let privateKeyAcc0 = '0xfe72c3c12c9dd86f9e22c61d40274163623caf58edec80533606f17e07de7101'
-let privateKeyAcc1 = '0xfb3cac734e17d0357415ac58cb4ec1491420df15aa41a31911cb02175b037a22'
+let privateKeyAcc0 = '0x0b53394fb4519618e536e5d2dbeff8a099d2ae75a056838b30f3d87f7dc8707d'
+let privateKeyAcc1 = '0x65a7c9ca8000b2d166f60594c1db59d156907a406b09626e31cb2825ba9693c2'
 
+let EthCrypto = require('eth-crypto');
 
 const increaseTime = addSeconds => {
     web3.currentProvider.send({
@@ -73,16 +74,31 @@ contract('ConsentManager', (accounts) => {
     let msg = tx1[0];
     let h = web3.utils.sha3(msg);
 
-    let sigg = await web3.eth.sign(h, dataUser);
+    // let sigg = await web3.eth.sign(h, dataUser);
+
+    const sigg = EthCrypto.sign(
+        privateKeyAcc0,
+        h
+    );
+
+    const signer = EthCrypto.recover(
+        sigg, // signature
+        h // message hash
+    );
+
+    assert.equal(signer, accounts[0], "sig does not match signer");
+
     var sig = sigg.slice(2);
-    var v = web3.utils.toDecimal(sig.slice(128, 130)) + 27;    
+    var v = web3.utils.toDecimal(sig.slice(128, 130));    
     var r = `0x${sig.slice(0, 64)}`;
     var s = `0x${sig.slice(64, 128)}`
+
+    console.log(h, sigg, sig, v, r, s)
 
     let tx5 = await con.isUserSigned();
 
     assert.equal(tx5, false, "consent was not yet signed by user");
-
+    console.log('t', h, v,r ,s)
     let tx2 = await con.signUser(h, v, r, s);
 
     let tx6 = await con.isUserSigned();
@@ -98,9 +114,13 @@ contract('ConsentManager', (accounts) => {
     let msg = tx1[0];
     let h = web3.utils.sha3(msg);
 
-    let sigg = await web3.eth.sign(h, dataSubject);
+    const sigg = EthCrypto.sign(
+        privateKeyAcc1,
+        h
+    );
+
     let sig = sigg.slice(2);
-    let v = web3.utils.toDecimal(sig.slice(128, 130)) + 27;    
+    let v = web3.utils.toDecimal(sig.slice(128, 130));    
     let r = `0x${sig.slice(0, 64)}`;
     let s = `0x${sig.slice(64, 128)}`
 
@@ -147,17 +167,17 @@ contract('ConsentManager', (accounts) => {
     
     let consents = await cm.getSubjectConsents({from: dataSubject});
     
-    console.log(consents)
+    // console.log(consents)
     
     let consent = await Consent.at(consents[0]);
     
     let consentStatus = await consent.status();
     
-    console.log(consentStatus);
+    // console.log(consentStatus);
     
     let newConsentAddress = await consent.updatedConsent();
     
-    console.log(newConsentAddress);
+    // console.log(newConsentAddress);
     
     let updatedConsent = await Consent.at(newConsentAddress);
     
