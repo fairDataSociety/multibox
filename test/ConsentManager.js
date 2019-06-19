@@ -7,8 +7,8 @@ let swarmHash1 = '0xc016ed5d54e357cb4a7460cb1b13b3f499dc4f428453fec21613e9339faa
 let swarmHash2 = '0xc016ed5d54e357cb4a7460cb1b13b3f499dc4f428453fec21613e9339faaeb3f';
 
 //just copy paste from ganache-cli now, later we can https://ethereum.stackexchange.com/questions/60995/how-to-get-private-keys-on-truffle-from-ganache-accounts
-let privateKeyAcc0 = '0x0b53394fb4519618e536e5d2dbeff8a099d2ae75a056838b30f3d87f7dc8707d'
-let privateKeyAcc1 = '0x65a7c9ca8000b2d166f60594c1db59d156907a406b09626e31cb2825ba9693c2'
+let privateKeyAcc0 = '0xeacfe7ae5571eadc79419eb7ebac89317734bd194bc40fdbe2177e78ab49d964'
+let privateKeyAcc1 = '0xc34a7605f9bfa67763e580a8218fcdbac56aa93d4d93073714c215f37d2c5f0a'
 
 let EthCrypto = require('eth-crypto');
 
@@ -92,8 +92,6 @@ contract('ConsentManager', (accounts) => {
     var v = web3.utils.toDecimal(sig.slice(128, 130));    
     var r = `0x${sig.slice(0, 64)}`;
     var s = `0x${sig.slice(64, 128)}`
-
-    console.log(h, sigg, sig, v, r, s)
 
     let tx5 = await con.isUserSigned();
 
@@ -191,9 +189,13 @@ contract('ConsentManager', (accounts) => {
     // revokeConsent() 
     let tx1 = await cm.getSubjectConsents({from: dataSubject});
     let con = await Consent.at(tx1[0]);
-    let tx2 = await con.revokeConsent({from: dataSubject});
-    let tx3 = await con.isValid();
 
-    assert.equal(tx3, false, "consent was not revoked...");    
+    let tx2 = await con.isValid();
+    assert.equal(tx2, true, "consent was not valid...");    
+
+    let tx3 = await con.revokeConsent({from: dataSubject});
+    let tx4 = await con.isValid();
+
+    assert.equal(tx4, false, "consent was not revoked...");    
   });  
 });
