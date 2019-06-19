@@ -145,18 +145,17 @@ contract Consent {
         transitionToActive();
     }
     
-    function signFor(address payable forParty, bytes32 h, uint8 v, bytes32 r, bytes32 s) private pure returns (bool) {
-        bytes memory prefix = "\x19Ethereum Signed Message:\n32";
+    // function signFor(address payable forParty, bytes32 h, uint8 v, bytes32 r, bytes32 s) private pure returns (bool) {
+    //     bytes memory prefix = "\x19Ethereum Signed Message:\n32";
 
-        bytes32 dataHash = keccak256(abi.encodePacked(prefix, h));
-        address addr = ecrecover(dataHash, v, r, s);
+    //     bytes32 dataHash = keccak256(abi.encodePacked(prefix, h));
+    //     address addr = ecrecover(dataHash, v, r, s);
         
-        return (addr == forParty);
-    }
+    //     return (addr == forParty);
+    // }
 
     function signForRaw(address payable forParty, bytes32 h, uint8 v, bytes32 r, bytes32 s) private returns (bool) {
         address addr = ecrecover(h, v, r, s);
-        emit LogA(addr, forParty);        
         return (addr == forParty);
-    }    
+    }
 }
