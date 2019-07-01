@@ -1,10 +1,11 @@
 // TEX 05.06.2019
 pragma solidity ^0.5.0;
-pragma experimental ABIEncoderV2;
+//pragma experimental ABIEncoderV2;
 
 contract ConsentManager {
     event SignaturesRequired(Consent consent, address dataUser, address dataSubject);
-    event ConsentUpdated(Consent consent, Consent withConsent); 
+    event ConsentUpdated(Consent consent, Consent withConsent);
+    event ConsentUpdate(address sender, address payable dataSubject, address payable dataUser); 
     
     /////////////////////////////////////////////////////////////////
     // these could be omited 
@@ -20,7 +21,7 @@ contract ConsentManager {
     
     
     function createConsent(address payable dataUser, address payable dataSubject, bytes32 swarmLocation) public returns (Consent) {
-        Consent consent = new Consent(dataUser, dataSubject, swarmLocation);
+        Consent consent = new Consent(address(this), dataUser, dataSubject, swarmLocation);
         
         addConsent(consent);
         
@@ -30,15 +31,14 @@ contract ConsentManager {
         return consent;
     }
     
-    function updateConsent(Consent consent, bytes32 swarmLocation) public returns (Consent) {
-        if(msg.sender!=address(consent.dataSubject) || msg.sender!=address(consent.dataUser)) 
-           return Consent(0x0);
+    function updateConsent(Consent consent, bytes32 swarmLocation) payable public returns (Consent) {
+        emit ConsentUpdate(msg.sender, consent.dataSubject(), consent.dataUser());
+        require(msg.sender==address(consent.dataSubject()) || msg.sender==address(consent.dataUser()));
+
+        Consent newConsent = new Consent(address(this), consent.dataUser(), consent.dataSubject(), swarmLocation);
         
-        Consent newConsent = new Consent(consent.dataUser(), consent.dataSubject(), swarmLocation);
-        
-        //consent.updateConsent(newConsent);
-        address(consent).call(abi.encodePacked("updateConsent(Consent)", consent));
-        
+        consent.updateConsent(newConsent);
+        //address(consent).call(abi.encodeWithSignature("updateConsent(Consent)", address(consent)));
         consentsOnSwarm[swarmLocation].push(consent);
         
         emit ConsentUpdated(consent, newConsent);
@@ -68,7 +68,8 @@ contract ConsentManager {
 
 contract Consent {
 
-    event LogA(address A, address B);
+    //event LogA(address A, address B);
+    event UpdatingConsent(address sender, address payable dataSubject, Consent consent, address origin); 
 
     function () external payable {    }
     function removeFunds()  public { 
@@ -76,7 +77,8 @@ contract Consent {
         dataSubject.transfer(address(this).balance); 
     }
 
-    constructor(address payable dataUserAddress, address payable dataSubjectAddress, bytes32 swarmLocation) public {
+    constructor(address consentManager, address payable dataUserAddress, address payable dataSubjectAddress, bytes32 swarmLocation) public {
+        consentMan = consentManager;
         status = ConsentStatus.AWAITINGSIGNATURE; 
         swarmHash = swarmLocation;
         
@@ -89,6 +91,7 @@ contract Consent {
     
     enum ConsentStatus {AWAITINGSIGNATURE,ACTIVE,EXPIRED,REVOKED}
     ConsentStatus public status;
+    address public consentMan;
     
     bytes32 public swarmHash;
     address payable public dataUser;
@@ -106,7 +109,9 @@ contract Consent {
     }
     
     function updateConsent(Consent consent) public returns (ConsentStatus) {
-        require(msg.sender==dataSubject);
+        emit UpdatingConsent(msg.sender, dataSubject, consent, tx.origin);
+        require(msg.sender==consentMan);
+        //require(msg.sender==dataSubject);
         status = ConsentStatus.EXPIRED;  
         updatedConsent = consent;
     }
@@ -154,7 +159,7 @@ contract Consent {
     //     return (addr == forParty);
     // }
 
-    function signForRaw(address payable forParty, bytes32 h, uint8 v, bytes32 r, bytes32 s) private returns (bool) {
+    function signForRaw(address payable forParty, bytes32 h, uint8 v, bytes32 r, bytes32 s) private pure returns (bool) {
         address addr = ecrecover(h, v, r, s);
         return (addr == forParty);
     }
