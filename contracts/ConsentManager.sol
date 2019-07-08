@@ -89,7 +89,7 @@ contract Consent {
         //validUntil = block.number + (365 * 24 * 60 * 60); // one year until valid
     }
     
-    enum ConsentStatus {AWAITINGSIGNATURE,ACTIVE,EXPIRED,REVOKED}
+    enum ConsentStatus {AWAITINGSIGNATURE,ACTIVE,EXPIRED,REVOKED_SUBJECT, REVOKED_USER}
     ConsentStatus public status;
     address public consentMan;
     
@@ -104,8 +104,11 @@ contract Consent {
     Consent public updatedConsent;
 
     function revokeConsent() public returns (ConsentStatus) {
-        require(msg.sender==dataSubject);
-        status = ConsentStatus.REVOKED;  
+        require(msg.sender==dataSubject || msg.sender==dataUser);
+        if(msg.sender==dataSubject)
+           status = ConsentStatus.REVOKED_SUBJECT;
+        else
+           status = ConsentStatus.REVOKED_USER;  
     }
     
     function updateConsent(Consent consent) public returns (ConsentStatus) {
